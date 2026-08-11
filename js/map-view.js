@@ -10,11 +10,18 @@
 // Leaflet + Leaflet.markercluster CDN script tags. No build step, no npm.
 // ES module.
 
-// CartoDB Positron raster tiles: token-free, online, clean look for a demo.
-const TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-const TILE_ATTRIB =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> ' +
-    'contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+// Gaode (高德) raster tiles. Why not OSM / CartoDB / Stadia: those CDNs
+// are unreachable from this network (8 s timeout → gray rectangles
+// everywhere). Gaode is fast (~200 ms) and has full coverage for 两江新区.
+// Gaode uses GCJ-02 (火星坐标系), so the API transforms building
+// coordinates from WGS-84 -> GCJ-02 before sending them to the frontend;
+// that's why building markers line up with the basemap.
+//
+// Style 8 = 标准地图 (raster standard). Subdomains 1..4 map to webrd01..04.
+const TILE_URL =
+  'https://webrd0{s}.is.autonavi.com/appmaptile' +
+  '?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
+const TILE_ATTRIB = '&copy; 高德地图';
 
 /**
  * Render a Leaflet map into `container` with one marker per building.
@@ -33,8 +40,12 @@ export function initMapView(container, buildings, onSelectBuilding) {
 
   L.tileLayer(TILE_URL, {
     attribution: TILE_ATTRIB,
-    subdomains: 'abcd',
-    maxZoom: 19,
+    subdomains: ['1', '2', '3', '4'], // webrd01 / webrd02 / webrd03 / webrd04
+    maxZoom: 18,                      // Gaode raster tops out around z=18
+    // Background fill for the few seconds before tiles arrive, so users
+    // don't see the default Leaflet pale gray flash on slow networks.
+    // (The CSS on .leaflet-container provides a slightly darker fill
+    //  that matches the tile's land color closely.)
   }).addTo(map);
 
   // Fit bounds to all buildings so the demo opens framed on the data.
