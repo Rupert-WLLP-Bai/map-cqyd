@@ -35,6 +35,19 @@ flashy animations.
   28px row height, only visible rows + buffer rendered) so a 200-item
   floor stays smooth; the direction-grouped collapse from v1 is preserved.
 
+## Scope (v3)
+
+Building interior is **equipment-driven** — 一级配电箱 / 二级配电箱 / OTN /
+光交, grouped by **机房** (Room), with an `online` / `offline` status per
+device and a per-floor equipment-type filter strip in the interior panel.
+Cables are still in the data but are **not rendered** in the v3 UI (they
+are kept around for a future v4 topology view). Building footprints can be
+hand-curated in `server/data/footprints.json` for the ~10 oddly-shaped
+buildings; the rest fall back to a default rectangle. On the map side, a
+left **filter panel** (OR semantic, default all-on) shows the count of
+buildings covering each equipment type, and unchecking a type removes
+markers for buildings that no longer match any selected type.
+
 ## Stack
 
 Vanilla JS ES modules — **no build step.** Leaflet, **Leaflet.markercluster**,

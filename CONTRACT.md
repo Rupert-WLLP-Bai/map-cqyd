@@ -15,7 +15,8 @@ Building = {
   name: string,          // Chinese display name
   lat: number, lng: number,
   address: string,
-  floors: Floor[]
+  floors: Floor[],
+  footprint: [[x, y], ...] | null   // optional hand-curated polygon (local coords); null = default rectangle
 }
 Floor    = { floorNo: number, label: string, cables: Cable[] }
 Cable    = {
@@ -27,6 +28,22 @@ Cable    = {
   type: string,
   cores: number,
 }
+Equipment = {
+  id: string,
+  buildingId: string,
+  type: '一级配电箱' | '二级配电箱' | 'OTN' | '光交',
+  floorNo: number,
+  roomId: string,
+  status: 'online' | 'offline',
+  position: { x: number, y: number }   // local floor coords, both in [0, 1]
+}
+Room      = {
+  id: string,
+  buildingId: string,
+  name: string,
+  floorNo: number,
+  type: 'main' | 'aux' | 'riser'       // 主设备间 / 辅助间 / 弱电井
+}
 ```
 
 - Direction labels shown in Chinese in the UI: `Dong=东, Nan=南, Xi=西, Bei=北`
@@ -35,6 +52,11 @@ Cable    = {
 - ~1,000 buildings, each 4-8 floors. Buildings are served by the mock
   backend described in §5 below; the front end does not import any
   canned BUILDINGS array directly.
+- **Equipment type enum**: `'一级配电箱' | '二级配电箱' | 'OTN' | '光交'`.
+- **Equipment status enum**: `'online' | 'offline'`.
+- **Room type enum**: `'main' | 'aux' | 'riser'`.
+- **Cable stays in the data model but is NOT rendered in v3** — it is
+  retained for a future v4 topology view.
 
 ## 2. Shared state
 
@@ -137,12 +159,19 @@ that boots the in-memory dataset once and exposes it read-only:
 
 ```
 GET /api/buildings
-  200 [{ id, name, lng, lat, address, floorCount, cableCount }, ...]
-  (list of ~1k summaries; floors/cables are NOT inlined)
+  200 [{ id, name, lng, lat, address, floorCount, cableCount,
+         equipmentTypes: string[]   // distinct Equipment.type values present in this building
+       }, ...]
+  (list of ~1k summaries; floors/rooms/equipment/cables are NOT inlined)
 
 GET /api/buildings/:id
   200 { id, name, lng, lat, address, floorCount, cableCount,
-         floors: [{ floorNo, label, cables: [Cable, ...] }, ...] }
+         equipmentTypes: string[],
+         footprint: [[x, y], ...] | null,         // polygon or null (default rectangle)
+         rooms:     [{ id, name, floorNo, type }],
+         equipment: [{ id, buildingId, type, floorNo, roomId, status, position: { x, y } }],
+         floors:    [{ floorNo, label, cables: [Cable, ...] }, ...]   // cables still returned for v4
+       }
   404 { error: 'not found', id }
 ```
 
@@ -168,6 +197,11 @@ GET /api/buildings/:id
    (fixed seed → stable across restarts) and is read-only. No
    write/edit/delete endpoints exist.
 7. **Leaflet + Three.js via CDN** (script tag or ESM); zero build step.
+8. **v3 red-line** — v3 replaces the cable-as-primary model with
+   `Equipment` + `Room` as first-class entities. Cables are still
+   generated and served (the detail endpoint keeps `floors[].cables`)
+   for the v4 topology view, but they are **NOT rendered** anywhere
+   in the v3 UI.
 
 ## 7. How to run
 
