@@ -257,3 +257,70 @@ body {
   font-size: 11px; color: #c9d2dd; background: rgba(0,0,0,0.35);
   padding: 3px 7px; border-radius: 3px; pointer-events: none;
 }
+
+/* ---------- markercluster palette ---------- */
+/* Leaflet.markercluster ships its own green/yellow/orange circles, which
+   fight the accent blue. Keep the library's shape + size classes, repaint
+   only the colors. Loaded after MarkerCluster.Default.css, so equal-
+   specificity rules here win. */
+.marker-cluster {
+  background-color: rgba(43, 108, 176, 0.22);
+  background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.marker-cluster div {
+  background-color: rgba(43, 108, 176, 0.78);
+  background-color: color-mix(in srgb, var(--accent) 78%, transparent);
+  color: #fff;
+}
+.marker-cluster span {
+  font-family: var(--sans);
+  font-weight: 600;
+  line-height: 30px;
+}
+
+/* ---------- virtualized cable table ---------- */
+/* Only the visible slice of rows lives in the DOM (see floor-panel.js); rows
+   must therefore be a fixed 28px so scrollTop maps to a row index. The
+   container caps its own height so a 200-cable group cannot push the floor
+   panel's layout around. */
+.cable-tbody-scroll {
+  max-height: min(60vh, 600px);
+  overflow: auto;
+  position: relative;
+}
+.cable-row {
+  height: 28px;
+  box-sizing: border-box;
+}
+/* Same td look as the static table, minus the vertical padding and wrapping
+   that would let a row exceed the 28px the slice math assumes. */
+.cable-row td {
+  padding-top: 0;
+  padding-bottom: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Spacer rows standing in for the un-rendered ones above/below the window.
+   Their height is set inline; everything else must not add pixels. */
+.cable-pad td {
+  padding: 0;
+  border: 0;
+}
+/* Header stays put while the virtualized body scrolls under it. */
+.cable-tbody-scroll .cable-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+}
+
+.cable-total {
+  padding: 6px 8px 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.cable-total.is-dense {
+  color: var(--accent);
+  font-weight: 600;
+}

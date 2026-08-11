@@ -10,6 +10,9 @@
 // the list: it marks + scrolls to the matching group (and expands it so its
 // cables are visible), or clears when dir is null.
 //
+// An expanded group virtualizes its cable table (fixed 28px rows, only the
+// visible slice in the DOM) so a 200+ cable 设备间 direction stays smooth.
+//
 // Canned data only. No backend, no fetch. ES module.
 
 import { DIRECTIONS, DIRECTION_ZH } from './data.js';
@@ -43,10 +46,17 @@ function ioCounts(list) {
   return { in: i, out: o };
 }
 
-// --- cable detail table ---------------------------------------------------
-function renderCableTable(cables) {
-  const table = h('table', 'cable-table');
+// --- cable detail table (virtualized) -------------------------------------
+// A dense "设备间" direction can hold 200+ cables, and four groups per floor
+// meant we were building thousands of <tr> nobody scrolls to. Instead the
+// tbody renders only the rows in view: fixed 28px rows let us map scrollTop
+// straight to an index range, and two padding rows above/below hold the
+// scrollbar at its true full height.
+const ROW_H = 28;      // must match .cable-row height in styles.css
+const ROW_BUFFER = 6;  // extra rows rendered off-screen each side
+const DENSE_AT = 200;  // '共 N 条' gets the dense tint past this
 
+function cableHead() {
   const thead = h('thead');
   const headRow = h('tr');
   headRow.append(
@@ -57,24 +67,99 @@ function renderCableTable(cables) {
     h('th', null, '芯数'),
   );
   thead.append(headRow);
+  return thead;
+}
 
+function cableRow(c) {
+  const tr = h('tr', 'cable-row');
+  const ioCls = c.io === 'in' ? 'io-in' : 'io-out';
+  const ioLabel = c.io === 'in' ? '接入' : '接出';
+  tr.append(
+    h('td', null, c.name),
+    h('td', ioCls, ioLabel),
+    h('td', null, c.peer),
+    h('td', null, c.type),
+    h('td', null, String(c.cores)),
+  );
+  return tr;
+}
+
+// A spacer row whose only job is to occupy `n * ROW_H` px. It carries a real
+// <td colspan> because a cell-less <tr> does not reliably take a height.
+function padRow() {
+  const tr = h('tr', 'cable-pad');
+  const td = h('td');
+  td.colSpan = 5;
+  tr.append(td);
+  return tr;
+}
+
+/**
+ * Build the scroll container + virtualized table for one direction's cables.
+ * Returns { el, refresh } — call refresh() after the element becomes visible
+ * so the first slice is measured against a real clientHeight.
+ */
+function renderCableTable(cables) {
+  const rows = cables || [];
+
+  const scroll = h('div', 'cable-tbody-scroll');
+  const table = h('table', 'cable-table');
   const tbody = h('tbody');
-  for (const c of cables) {
-    const tr = h('tr');
-    const ioCls = c.io === 'in' ? 'io-in' : 'io-out';
-    const ioLabel = c.io === 'in' ? '接入' : '接出';
-    tr.append(
-      h('td', null, c.name),
-      h('td', ioCls, ioLabel),
-      h('td', null, c.peer),
-      h('td', null, c.type),
-      h('td', null, String(c.cores)),
-    );
-    tbody.append(tr);
-  }
+  const padTop = padRow();
+  const padBot = padRow();
+  table.append(cableHead(), tbody);
+  scroll.append(table);
 
-  table.append(thead, tbody);
-  return table;
+  let firstRendered = -1;
+  let lastRendered = -1;
+  let frame = 0;
+
+  const paint = (force) => {
+    // Before the group opens the container has no height; fall back to a
+    // screenful so the first paint is never empty.
+    const viewH = scroll.clientHeight || ROW_H * 20;
+    const top = scroll.scrollTop;
+    const first = Math.max(0, Math.floor(top / ROW_H) - ROW_BUFFER);
+    const last = Math.min(rows.length - 1,
+      Math.ceil((top + viewH) / ROW_H) + ROW_BUFFER);
+
+    if (!force && first === firstRendered && last === lastRendered) return;
+    firstRendered = first;
+    lastRendered = last;
+
+    padTop.firstChild.style.height = `${first * ROW_H}px`;
+    padBot.firstChild.style.height =
+      `${Math.max(0, rows.length - 1 - last) * ROW_H}px`;
+
+    const frag = document.createDocumentFragment();
+    frag.append(padTop);
+    for (let i = first; i <= last; i += 1) frag.append(cableRow(rows[i]));
+    frag.append(padBot);
+    tbody.replaceChildren(frag);
+  };
+
+  // One re-slice per animation frame at most; scroll fires far faster.
+  scroll.addEventListener('scroll', () => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      paint(false);
+    });
+  });
+
+  const wrap = h('div', 'cable-table-wrap');
+  const total = h('div', 'cable-total', `共 ${rows.length} 条`);
+  if (rows.length > DENSE_AT) total.classList.add('is-dense');
+  wrap.append(scroll, total);
+
+  paint(true);
+
+  return {
+    el: wrap,
+    refresh() {
+      paint(true);
+    },
+  };
 }
 
 // --- one direction group --------------------------------------------------
@@ -108,15 +193,25 @@ function renderDirectionGroup(dir, cables, onSelect) {
 
   header.append(dirName, counts, chev);
 
-  // Detail: the cable table for this direction. Hidden until expanded.
+  // Detail: the cable table for this direction. Hidden until expanded, and
+  // not even built until then — a collapsed group shows counts only, so there
+  // is nothing to render and nothing to measure.
   const detail = h('div', 'dir-group__detail');
-  detail.append(renderCableTable(cables));
+  let table = null;
 
   group.append(header, detail);
 
   const setOpen = (open) => {
     group.classList.toggle('is-open', open);
     header.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (!open) return;
+    if (!table) {
+      table = renderCableTable(cables);
+      detail.append(table.el);
+    }
+    // Now that the detail is displayed the scroll container has a real
+    // height, so re-slice against it.
+    table.refresh();
   };
   const toggle = () => setOpen(!group.classList.contains('is-open'));
 

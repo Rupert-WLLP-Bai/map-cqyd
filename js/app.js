@@ -6,13 +6,17 @@
 //   - building view (#building-view, interior) -> hidden via .view--hidden
 //
 // Flow:
-//   initMapView(#map-view, BUILDINGS, id => showBuilding(id))
-//   showBuilding -> initBuildingView(#building-view, building, onBack)
-//   onBack       -> showMap (dispose building view, restore map)
+//   init()             -> fetchBuildings() -> initMapView(#map-view, list,
+//                         onSelectBuilding)
+//   onSelectBuilding   -> fetchBuilding(id) -> showBuilding(building)
+//   showBuilding       -> initBuildingView(#building-view, building, onBack)
+//   onBack             -> showMap (dispose building view, restore map)
 //
-// Canned data only. No backend. ES module. No build step.
+// Data comes from the mock backend over HTTP (js/api.js); the list call has
+// no floor detail, so a building's floors are fetched on selection. Failures
+// surface as a toast and leave the current view alone. ES module. No build.
 
-import { BUILDINGS } from './data.js';
+import { fetchBuildings, fetchBuilding, ApiError, showToast } from './api.js';
 import { initMapView } from './map-view.js';
 import { initBuildingView } from './building-view.js';
 
@@ -33,9 +37,10 @@ const state = {
 
 let mapHandle = null;     // { invalidateSize } from initMapView
 let buildingHandle = null; // { dispose } from initBuildingView
+let loading = false;      // a building detail request is in flight
 
-function findBuilding(id) {
-  return BUILDINGS.find((b) => b.id === id) || null;
+function messageFor(err, fallback) {
+  return err && err.message ? err.message : fallback;
 }
 
 // --- view switching --------------------------------------------------------
@@ -64,10 +69,12 @@ function showMap() {
   }
 }
 
-function showBuilding(id) {
-  const building = findBuilding(id);
-  if (!building) {
-    console.warn('app.js: unknown building id', id);
+// `building` is a detail payload from GET /api/buildings/:id — it must carry
+// floors, which the map list payload does not.
+function showBuilding(building) {
+  if (!building || !Array.isArray(building.floors) || building.floors.length === 0) {
+    console.warn('app.js: building detail without floors', building);
+    showToast('该楼宇没有楼层数据');
     return;
   }
 
@@ -78,7 +85,7 @@ function showBuilding(id) {
   }
 
   state.view = 'building';
-  state.buildingId = id;
+  state.buildingId = building.id;
   state.floorNo = building.floors[0] ? building.floors[0].floorNo : 1;
   state.direction = null;
 
@@ -94,11 +101,53 @@ function showBuilding(id) {
   });
 }
 
+// --- selection -------------------------------------------------------------
+
+// Marker click -> fetch that building's floors, then enter it. Minimal
+// loading state: ignore further clicks and show a busy cursor while the
+// request is in flight (map-view.js keeps its synchronous signature).
+async function onSelectBuilding(id) {
+  if (loading) return;
+  loading = true;
+  mapViewEl.style.cursor = 'progress';
+
+  try {
+    showBuilding(await fetchBuilding(id));
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      showToast('未找到该楼宇');
+    } else {
+      showToast(messageFor(err, '楼宇详情加载失败'));
+    }
+  } finally {
+    loading = false;
+    mapViewEl.style.cursor = '';
+  }
+}
+
 // --- boot -----------------------------------------------------------------
 
-mapHandle = initMapView(mapViewEl, BUILDINGS, (id) => {
-  showBuilding(id);
-});
+async function init() {
+  let buildings;
+  try {
+    buildings = await fetchBuildings();
+  } catch (err) {
+    showToast(messageFor(err, '楼宇列表加载失败'));
+    return;
+  }
+
+  // initMapView fits bounds to the markers; an empty list has no bounds.
+  if (buildings.length === 0) {
+    showToast('后端未返回任何楼宇', 'info');
+    return;
+  }
+
+  mapHandle = initMapView(mapViewEl, buildings, (id) => {
+    onSelectBuilding(id);
+  });
+}
+
+init();
 
 // Esc returns to the map from the building view (handy for a live demo).
 window.addEventListener('keydown', (ev) => {
