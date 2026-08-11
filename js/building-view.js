@@ -49,12 +49,22 @@ export function initBuildingView(container, building, onBack) {
   let panelHandle = null;   // { highlightDirection } from renderFloorPanel
   let disposed = false;
 
-  // --- 3D wireframe anchor (slabs clickable to jump floors) ---
+  // --- 3D wireframe anchor (slabs clickable to jump floors; bundle markers
+  //     on each facade clickable to jump floors AND highlight that direction) ---
   const three = initBuilding3D(b3dEl, building, {
     onSelectFloor: (floorNo) => {
       if (disposed) return;
       const i = floors.findIndex((f) => f.floorNo === floorNo);
       if (i >= 0 && i !== idx) { idx = i; renderCurrent(); }
+    },
+    onSelectBundle: (floorNo, dir) => {
+      if (disposed) return;
+      const i = floors.findIndex((f) => f.floorNo === floorNo);
+      // Always sync the active direction, then re-render so the panel group
+      // for `dir` is highlighted + expanded on the right floor.
+      activeDir = dir;
+      if (i >= 0) idx = i;
+      renderCurrent();
     },
   });
 

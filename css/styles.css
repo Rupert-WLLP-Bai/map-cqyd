@@ -166,8 +166,48 @@ body {
 .cable-table .io-out { color: var(--out); font-weight: 600; }
 
 /* ---------- 3D mount ---------- */
-.b3d-mount { height: 100%; width: 100%; background: #1b2430; }
+.b3d-mount {
+  height: 100%; width: 100%; background: #1b2430;
+  position: relative; /* anchor the CSS2D overlay appended by building3d.js */
+}
 .b3d-mount canvas { display: block; width: 100%; height: 100%; }
+
+/* CSS2D bundle count badge — one per floor x facade.
+   CSS2DRenderer positions each badge via inline `transform: translate(...)`
+   so we only style appearance here. position:absolute keeps the badge at
+   the lib's transform-origin; pointer-events:none lets clicks pass through
+   to the canvas (raycaster handles bundle selection). */
+.b3d-badge {
+  position: absolute;
+  top: 0; left: 0;
+  font-family: var(--sans);
+  font-size: 10px; font-weight: 600;
+  color: #f5f6f8;
+  background: rgba(20, 28, 40, 0.72);
+  padding: 1px 6px;
+  border-radius: 9px;
+  white-space: nowrap;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.18s ease, background 0.18s ease, font-size 0.18s ease;
+}
+.b3d-badge__in  { color: #6fe0a8; margin-right: 3px; }  /* 接入 - green */
+.b3d-badge__out { color: #ff9d8a; }                     /* 接出 - red   */
+.b3d-badge.is-dim { opacity: 0.32; }
+.b3d-badge.is-hover {
+  opacity: 1;
+  background: rgba(20, 28, 40, 0.88);
+  font-size: 11px;
+  padding: 2px 7px;
+}
+.b3d-badge.is-hover::before {
+  content: attr(data-label);
+  margin-right: 6px;
+  color: #cfe0f3;
+  font-weight: 600;
+}
 
 /* small hint caption over 3D */
 .b3d-hint {
