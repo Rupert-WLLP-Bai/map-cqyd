@@ -1,0 +1,171 @@
+/* css/styles.css
+   Clean, readable, laptop ~1440x900. No flashy animation.
+   Direction groups are collapsed-by-default: clickable header shows a
+   per-direction in/out count; cable detail is hidden until clicked. */
+
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --ink: #1f2329;
+  --ink-soft: #5b6470;
+  --line: #e2e5ea;
+  --accent: #2b6cb0;
+  --accent-soft: #ebf2fb;
+  --in: #1f8a55;     /* cable in  */
+  --out: #b4351f;    /* cable out */
+  --floor-hi: #ffd86b; /* 3D current floor highlight */
+  --facade-hi: #2b6cb0; /* 3D selected facade highlight */
+  --mono: SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ---------- view switching ---------- */
+#app { height: 100vh; width: 100vw; }
+.view { position: absolute; inset: 0; }
+.view--hidden { display: none !important; }
+
+/* ---------- map view ---------- */
+#map-view { height: 100%; width: 100%; }
+.leaflet-container { height: 100%; width: 100%; background: #e8eaed; }
+
+/* building marker pin */
+.bld-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+.bld-pin__dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.bld-pin__label {
+  margin-top: 2px;
+  padding: 1px 5px;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* ---------- building view ---------- */
+.view--building { display: flex; flex-direction: column; }
+
+.bld-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.bld-name { font-weight: 600; font-size: 16px; }
+.btn-back {
+  font: inherit; font-size: 13px; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid #cfe0f3;
+  border-radius: 4px; padding: 5px 10px; cursor: pointer;
+}
+.btn-back:hover { background: #dcebfa; }
+
+.bld-body {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: row;
+}
+.bld-left {
+  flex: 0 0 60%; max-width: 60%;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  min-width: 0;
+}
+.bld-right { flex: 1 1 40%; min-width: 0; }
+
+/* floor pager */
+.floor-pager {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.pager-btn {
+  font: inherit; font-size: 13px; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 4px; padding: 5px 10px; cursor: pointer;
+}
+.pager-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.floor-label { font-weight: 600; font-size: 15px; min-width: 60px; text-align: center; }
+
+/* floor panel */
+.floor-panel {
+  flex: 1 1 auto; overflow: auto; padding: 8px 16px 24px;
+}
+
+/* ---------- direction group (collapsed by default) ---------- */
+.dir-group {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: var(--panel);
+}
+.dir-group__header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; cursor: pointer; user-select: none;
+}
+.dir-group__header:hover { background: var(--accent-soft); }
+.dir-group__dir {
+  font-weight: 600; font-size: 15px; min-width: 1.5em;
+}
+.dir-group__counts {
+  display: flex; gap: 10px; font-size: 13px; color: var(--ink-soft);
+}
+.dir-group__count { font-weight: 600; }
+.count--in  { color: var(--in); }
+.count--out { color: var(--out); }
+.dir-group__chev {
+  margin-left: auto; color: var(--ink-soft); font-size: 12px;
+  transition: transform 0.12s ease; /* tiny, not flashy */
+}
+.dir-group.is-open .dir-group__chev { transform: rotate(90deg); }
+
+.dir-group__detail {
+  display: none;
+  border-top: 1px solid var(--line);
+  padding: 6px 12px 10px;
+}
+.dir-group.is-open .dir-group__detail { display: block; }
+
+/* cable list table */
+.cable-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cable-table th, .cable-table td {
+  text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line);
+}
+.cable-table th { color: var(--ink-soft); font-weight: 500; }
+.cable-table td { font-family: var(--mono); color: var(--ink); }
+.cable-table .io-in  { color: var(--in); font-weight: 600; }
+.cable-table .io-out { color: var(--out); font-weight: 600; }
+
+/* ---------- 3D mount ---------- */
+.b3d-mount { height: 100%; width: 100%; background: #1b2430; }
+.b3d-mount canvas { display: block; width: 100%; height: 100%; }
+
+/* small hint caption over 3D */
+.b3d-hint {
+  position: absolute; right: 10px; bottom: 10px;
+  font-size: 11px; color: #c9d2dd; background: rgba(0,0,0,0.35);
+  padding: 3px 7px; border-radius: 3px; pointer-events: none;
+}
