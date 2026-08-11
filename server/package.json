@@ -1,0 +1,14 @@
+{
+  "name": "map-cqyd-server",
+  "version": "1.0.0",
+  "description": "Mock Express backend for the map-cqyd demo. Single-dep: express 4.x. ESM.",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
