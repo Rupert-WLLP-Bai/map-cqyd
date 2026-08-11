@@ -324,3 +324,55 @@ body {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ---------- map filter panel (mounted by map-filter.js) ---------- */
+/* Anchor only; map-filter.js writes the rest inline so the panel sits above
+   the zoom control at top-left without fighting the rest of stylesheet. */
+.map-filter {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+}
+.map-filter__title {
+  font-weight: 600;
+}
+.map-filter__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border-radius: 3px;
+}
+.map-filter__row:hover {
+  background: var(--accent-soft);
+}
+.map-filter__name {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-filter__count {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.map-filter__actions {
+  display: flex;
+  gap: 6px;
+}
+.map-filter__actions button {
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid #cfe0f3;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.map-filter__actions button:hover {
+  background: #dcebfa;
+}

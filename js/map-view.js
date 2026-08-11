@@ -6,9 +6,17 @@
 // every marker goes into a Leaflet.markercluster group: low zoom shows counted
 // cluster circles, zooming in splits them until individual pins appear.
 //
+// A floating equipment-type filter panel is mounted at the top-left of the
+// map container and toggles marker visibility (OR semantic: a building is
+// shown when any of its equipmentTypes is still enabled).
+//
 // Uses the globals L and L.markerClusterGroup that index.html loaded via the
 // Leaflet + Leaflet.markercluster CDN script tags. No build step, no npm.
 // ES module.
+
+import { createMapFilter } from './map-filter.js';
+
+const FILTER_TYPES = ['一级配电箱', '二级配电箱', 'OTN', '光交'];
 
 // Gaode (高德) raster tiles. Why not OSM / CartoDB / Stadia: those CDNs
 // are unreachable from this network (8 s timeout → gray rectangles
@@ -65,6 +73,24 @@ export function initMapView(container, buildings, onSelectBuilding) {
     spiderfyOnMaxZoom: true,
   });
 
+  // Per-type building counts: for each building, increment every one of its
+  // equipmentTypes. The counts feed the filter panel readouts; they are
+  // computed once at init since they do not change with the filter state.
+  const typeCounts = Object.create(null);
+  for (const t of FILTER_TYPES) typeCounts[t] = 0;
+  for (const b of buildings) {
+    const types = b.equipmentTypes || [];
+    for (const t of types) {
+      if (Object.prototype.hasOwnProperty.call(typeCounts, t)) {
+        typeCounts[t] += 1;
+      }
+    }
+  }
+
+  // buildingId -> { marker, types[] } so the filter can add/remove markers
+  // by id and remember each building's equipment types for the OR check.
+  const markerRegistry = new Map();
+
   buildings.forEach((b) => {
     const marker = L.marker([b.lat, b.lng], {
       title: b.name,
@@ -100,15 +126,48 @@ export function initMapView(container, buildings, onSelectBuilding) {
     });
 
     clusterGroup.addLayer(marker);
+    markerRegistry.set(b.id, {
+      marker,
+      types: Array.isArray(b.equipmentTypes) ? b.equipmentTypes : [],
+    });
   });
 
   map.addLayer(clusterGroup);
 
+  // Floating equipment-type filter panel. The panel is a child of the map
+  // container (Leaflet-friendly: it sits inside the positioned .leaflet-
+  // container which gives `position: absolute` a reference), at top-left so
+  // it rests above the zoom control.
+  const filter = createMapFilter({
+    counts: typeCounts,
+    initialEnabled: new Set(FILTER_TYPES),
+    onChange(enabled) {
+      // OR semantic: show building when at least one of its equipmentTypes
+      // is still enabled. addLayer / removeLayer let markercluster recompute
+      // clusters automatically.
+      for (const [id, entry] of markerRegistry) {
+        const visible = entry.types.some((t) => enabled.has(t));
+        const inCluster = clusterGroup.hasLayer(entry.marker);
+        if (visible && !inCluster) {
+          clusterGroup.addLayer(entry.marker);
+        } else if (!visible && inCluster) {
+          clusterGroup.removeLayer(entry.marker);
+        }
+      }
+    },
+  });
+  map.getContainer().appendChild(filter.el);
+
   // Leaflet sometimes mis-measures tiles when the container was hidden when
   // init ran; expose invalidateSize so app.js can call it on view return.
+  // Also clean up the filter panel when the map view is disposed so it does
+  // not leak between mount/unmount cycles.
   return {
     invalidateSize() {
       map.invalidateSize(false);
+    },
+    dispose() {
+      filter.destroy();
     },
   };
 }
