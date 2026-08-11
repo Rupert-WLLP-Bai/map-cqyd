@@ -219,6 +219,38 @@ body {
   font-weight: 600;
 }
 
+/* Direction labels (东/南/西/北): one per facade, fixed at mid-building
+   height, just outside. Neutral muted color so they read as a spatial
+   anchor without competing with the badges. */
+.b3d-dir-label {
+  position: absolute; top: 0; left: 0;
+  font-family: var(--sans);
+  font-size: 22px; font-weight: 600;
+  color: rgba(95, 105, 120, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Floor labels: one per slab, floating at the front-right corner.
+   Default state is dim + light; .is-active promotes to the accent
+   color and bumps weight to follow the active floor. */
+.b3d-floor-label {
+  position: absolute; top: 0; left: 0;
+  font-family: var(--mono);
+  font-size: 11px; font-weight: 500;
+  color: rgba(95, 105, 120, 0.55);
+  letter-spacing: 0.3px;
+  pointer-events: none;
+  user-select: none;
+  transition: color .15s ease, opacity .15s ease;
+}
+.b3d-floor-label.is-active {
+  color: var(--accent);
+  font-weight: 700;
+  opacity: 1;
+}
+
 /* small hint caption over 3D */
 .b3d-hint {
   position: absolute; right: 10px; bottom: 10px;

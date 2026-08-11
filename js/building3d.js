@@ -242,6 +242,47 @@ export function initBuilding3D(container, building, opts = {}) {
     }
   }
 
+  // --- direction labels (东/南/西/北): one CSS2D label per facade ---
+  // Fixed at the center of each facade at mid-building height, just outside
+  // the building (beyond bundles + badges). They're tied to world-space
+  // directions, not the camera: rotating the view reveals that the labels
+  // stay anchored to their facade.
+  const DIR_LABEL_OFFSET = 0.7; // outside the building, beyond bundles+badges
+  function makeDirLabel(dir, x, y, z) {
+    const el = document.createElement('div');
+    el.className = 'b3d-dir-label';
+    el.textContent = DIR_ZH[dir];
+    const obj = new CSS2DObject(el);
+    obj.position.set(x, y, z);
+    scene.add(obj);
+    return { dir, el };
+  }
+  const dirLabels = [
+    makeDirLabel('Dong',  (SLAB_W / 2 + DIR_LABEL_OFFSET), buildingH / 2, 0),
+    makeDirLabel('Xi',   -(SLAB_W / 2 + DIR_LABEL_OFFSET), buildingH / 2, 0),
+    makeDirLabel('Nan',   0, buildingH / 2,  (SLAB_D / 2 + DIR_LABEL_OFFSET)),
+    makeDirLabel('Bei',   0, buildingH / 2, -(SLAB_D / 2 + DIR_LABEL_OFFSET)),
+  ];
+
+  // --- floor labels: one CSS2D label per slab at the front-right corner ---
+  // Floating just outside the building's front-right (东+南) corner so they
+  // form a vertical column that's readable from the default camera angle
+  // and doesn't collide with the bundle markers on each facade.
+  const FLOOR_LABEL_OFFSET_X = SLAB_W / 2 + 0.3;
+  const FLOOR_LABEL_OFFSET_Z = SLAB_D / 2 + 0.3;
+  const floorLabels = []; // { floorNo, el }
+  for (let i = 0; i < floorCount; i += 1) {
+    const floorNo = floors[i].floorNo;
+    const y = i * FLOOR_STEP + SLAB_H / 2;
+    const el = document.createElement('div');
+    el.className = 'b3d-floor-label';
+    el.textContent = floors[i].label || `${floorNo}F`;
+    const obj = new CSS2DObject(el);
+    obj.position.set(FLOOR_LABEL_OFFSET_X, y, FLOOR_LABEL_OFFSET_Z);
+    scene.add(obj);
+    floorLabels.push({ floorNo, el });
+  }
+
   // --- emphasis state ---
   let activeFloorNo = null;
   let activeDirection = null;
@@ -291,6 +332,14 @@ export function initBuilding3D(container, building, opts = {}) {
       b.mesh.scale.setScalar(baseScale * (emphasis ? 1.12 : 0.9));
 
       b.badgeEl.classList.toggle('is-dim', !emphasis);
+    }
+
+    // Floor labels: the active floor's label is highlighted (accent color,
+    // bold via .is-active in CSS); the rest are dim by default. Direction
+    // labels (东/南/西/北) are static and not tracked here — they always
+    // stay visible as a spatial anchor.
+    for (const fl of floorLabels) {
+      fl.el.classList.toggle('is-active', fl.floorNo === activeFloorNo);
     }
   }
 
