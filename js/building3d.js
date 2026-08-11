@@ -50,6 +50,15 @@ const COLOR_BG      = 0xf4f5f7;
 const COLOR_GRID_MJ = 0xcfd3da;
 const COLOR_GRID_MN = 0xe8eaee;
 
+// Equipment type -> dot color (small cubes on the active floor).
+const EQUIPMENT_COLOR = {
+  '一级配电箱': 0x1f8a55, // green
+  '二级配电箱': 0x2b6cb0, // blue
+  'OTN':       0xd4a017, // yellow
+  '光交':      0x7c4dff, // purple
+};
+const DOT_SIZE = 0.18; // edge length of one equipment dot cube
+
 // Slab proportions (abstract; the scene is a spatial anchor, not to scale).
 const SLAB_W = 4.0;  // X width
 const SLAB_D = 4.0;  // Z depth
@@ -109,17 +118,40 @@ export function initBuilding3D(container, building, opts = {}) {
   controls.target.set(0, buildingH / 2, 0);
   controls.update();
 
-  // --- building wireframe: one box (edges + faint fill) per floor, stacked ---
-  const slabs = []; // { floorNo, y, lineSeg, fill, boxGeo, edgesGeo, lineMat, fillMat }
+  // --- building wireframe: one slab (edges + faint fill) per floor, stacked ---
+  // When building.footprint is present, extrude the polygon (extents
+  // ~[-2, 2]) into a SLAB_H-tall prism; otherwise use a rectangular
+  // BoxGeometry. The fill mesh + wireframe share one geometry per building.
+  let slabGeo;
+  let slabEdgesGeo;
+  if (building.footprint) {
+    const shape = new THREE.Shape();
+    const fp = building.footprint;
+    shape.moveTo(fp[0][0], fp[0][1]);
+    for (let i = 1; i < fp.length; i += 1) {
+      shape.lineTo(fp[i][0], fp[i][1]);
+    }
+    slabGeo = new THREE.ExtrudeGeometry(shape, { depth: SLAB_H, bevelEnabled: false });
+    // ExtrudeGeometry builds on the XY plane and extrudes along +Z. Rotate
+    // so the polygon lies on XZ (Y up): shape (x, y) -> world (x, -z),
+    // extrusion direction (Z) -> world Y.
+    slabGeo.rotateX(-Math.PI / 2);
+    // Extrusion spans y in [0, SLAB_H] after rotation. Shift so the slab's
+    // center sits at y=0 in geometry-local space; mesh.position then places
+    // the center at the per-floor y.
+    slabGeo.translate(0, -SLAB_H / 2, 0);
+  } else {
+    slabGeo = new THREE.BoxGeometry(SLAB_W, SLAB_H, SLAB_D);
+  }
+  slabEdgesGeo = new THREE.EdgesGeometry(slabGeo);
+
+  const slabs = []; // { floorNo, y, lineSeg, fill, lineMat, fillMat }
   for (let i = 0; i < floorCount; i += 1) {
     const floorNo = floors[i].floorNo; // 1-based per data contract
     const y = i * FLOOR_STEP + SLAB_H / 2;
 
-    const boxGeo = new THREE.BoxGeometry(SLAB_W, SLAB_H, SLAB_D);
-    const edgesGeo = new THREE.EdgesGeometry(boxGeo);
-
     const lineMat = new THREE.LineBasicMaterial({ color: COLOR_DIM });
-    const lineSeg = new THREE.LineSegments(edgesGeo, lineMat);
+    const lineSeg = new THREE.LineSegments(slabEdgesGeo, lineMat);
     lineSeg.position.set(0, y, 0);
 
     // Faint translucent fill so the active floor reads as a solid slab when
@@ -130,12 +162,55 @@ export function initBuilding3D(container, building, opts = {}) {
       opacity: 0.06,
       depthWrite: false,
     });
-    const fill = new THREE.Mesh(boxGeo, fillMat);
+    const fill = new THREE.Mesh(slabGeo, fillMat);
     fill.position.set(0, y, 0);
     fill.userData.floorNo = floorNo; // for raycaster click-to-jump
 
     scene.add(lineSeg, fill);
-    slabs.push({ floorNo, y, lineSeg, fill, boxGeo, edgesGeo, lineMat, fillMat });
+    slabs.push({ floorNo, y, lineSeg, fill, lineMat, fillMat });
+  }
+
+  // --- equipment dots (current floor only) ---
+  // Small colored cubes per equipment on the active floor. Pure visual:
+  // not added to bundleMeshes, so they are NOT raycasted / clickable.
+  // Recreated each time setActiveFloor changes (clear-and-rebuild is the
+  // simplest correct approach for an at-most-a-few-dozen per floor).
+  let equipDots = []; // { mesh, material, geometry }
+  function clearEquipDots() {
+    for (const d of equipDots) {
+      scene.remove(d.mesh);
+      d.geometry.dispose();
+      d.material.dispose();
+    }
+    equipDots = [];
+  }
+  function renderEquipDotsForFloor(floorNo) {
+    clearEquipDots();
+    if (!building.equipment || floorNo == null) return;
+    const items = building.equipment.filter((e) => e.floorNo === floorNo);
+    if (items.length === 0) return;
+    // Sit just above the slab's top surface (top = slab center + SLAB_H/2).
+    const dotY = (floorNo - 1) * FLOOR_STEP + SLAB_H + DOT_SIZE / 2 + 0.02;
+    for (const e of items) {
+      const colorHex = EQUIPMENT_COLOR[e.type] != null
+        ? EQUIPMENT_COLOR[e.type]
+        : COLOR_DIM;
+      const opacity = e.status === 'online' ? 0.95 : 0.45;
+      const geo = new THREE.BoxGeometry(DOT_SIZE, DOT_SIZE, DOT_SIZE);
+      const mat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      // Local [0, 1] -> world; 0.8 inset factor keeps dots inside the slab.
+      const worldX = (e.position.x - 0.5) * SLAB_W * 0.8;
+      const worldZ = (e.position.y - 0.5) * SLAB_D * 0.8;
+      mesh.position.set(worldX, dotY, worldZ);
+      scene.add(mesh);
+      equipDots.push({ mesh, material: mat, geometry: geo });
+    }
   }
 
   // Subtle ground grid as a spatial anchor (nothing flashy).
@@ -346,6 +421,7 @@ export function initBuilding3D(container, building, opts = {}) {
   function setActiveFloor(floorNo) {
     activeFloorNo = floorNo;
     applyHighlight();
+    renderEquipDotsForFloor(floorNo);
   }
   function setActiveDirection(dir) {
     activeDirection = dir == null ? null : (DIR_TO_SIDE[dir] ? dir : null);
@@ -473,12 +549,13 @@ export function initBuilding3D(container, building, opts = {}) {
     window.removeEventListener('resize', resize);
     controls.dispose();
 
+    clearEquipDots();
     for (const s of slabs) {
-      s.lineSeg.geometry.dispose();
       s.lineSeg.material.dispose();
-      s.fill.geometry.dispose();
       s.fill.material.dispose();
     }
+    slabEdgesGeo.dispose();
+    slabGeo.dispose();
     facadeGeoX.dispose();
     facadeGeoZ.dispose();
     facadeMat.dispose();
