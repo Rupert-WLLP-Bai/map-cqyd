@@ -87,14 +87,14 @@ export function initBuilding3D(container, building, opts = {}) {
   container.appendChild(renderer.domElement);
   renderer.domElement.style.display = 'block';
 
-  // CSS2D overlay for count badges + hover labels. Absolute, out of layout
-  // flow, pointer-events none so the canvas keeps all pointer input.
-  // (.b3d-mount is position:relative in CSS, so the overlay anchors there.)
+  // CSS2D overlay for count badges + hover labels. CSS (.b3d-overlay
+  // { position:absolute; inset:0; pointer-events:none }) controls the
+  // overlay's layout — we never write inline position/size/pointer-events,
+  // so a layout-side bug in any of them can never feed back into the
+  // container's ResizeObserver. CSS2DRenderer.constructor sets the
+  // overlay's overflow:hidden for us.
   const cssRenderer = new CSS2DRenderer();
-  cssRenderer.domElement.style.position = 'absolute';
-  cssRenderer.domElement.style.top = '0';
-  cssRenderer.domElement.style.left = '0';
-  cssRenderer.domElement.style.pointerEvents = 'none';
+  cssRenderer.domElement.classList.add('b3d-overlay');
   container.appendChild(cssRenderer.domElement);
 
   // --- controls: drag to rotate only. No auto-rotate, no pan, no flythrough. ---
@@ -317,7 +317,16 @@ export function initBuilding3D(container, building, opts = {}) {
     if (w === lastW && h === lastH) return;
     lastW = w; lastH = h;
     renderer.setSize(w, h, false);
+    // cssRenderer.setSize writes style.width/height in px as a side effect;
+    // we need it ONLY for the _width/_height projection math (badges'
+    // screen-space positions are derived from these). So call it, then
+    // immediately clear the inline width/height so CSS (.b3d-overlay
+    // { inset:0 }) fully owns the overlay's display dimensions. This
+    // removes the only remaining "style on a child of the observed
+    // container" write from the resize path.
     cssRenderer.setSize(w, h);
+    cssRenderer.domElement.style.width = '';
+    cssRenderer.domElement.style.height = '';
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }

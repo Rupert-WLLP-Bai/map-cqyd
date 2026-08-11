@@ -172,6 +172,16 @@ body {
 }
 .b3d-mount canvas { display: block; width: 100%; height: 100%; }
 
+/* CSS2DRenderer overlay (.b3d-overlay class added by building3d.js).
+   Fully CSS-owned: inset:0 makes the absolute overlay fill its relative
+   parent (.b3d-mount) without any inline width/height — so cssRenderer's
+   setSize() can update the projection math without writing layout. */
+.b3d-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* CSS2D bundle count badge — one per floor x facade.
    CSS2DRenderer positions each badge via inline `transform: translate(...)`
    so we only style appearance here. position:absolute keeps the badge at
