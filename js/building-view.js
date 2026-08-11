@@ -4,16 +4,20 @@
 //   - Three.js wireframe anchor (right, #b3d) -> initBuilding3D
 //       (slabs are clickable to jump floors; onSelectFloor drives idx)
 //   - Floor pager (#floor-pager prev/next + a #floor-select dropdown to jump)
-//   - Per-floor cable panel grouped by direction (left, #floor-panel)
-//     -> renderFloorPanel
+//   - Per-floor equipment panel (left, #floor-panel) -> renderFloorPanel
 //
-// Direction sync: a panel direction group click drives the 3D facade
-// highlight (setActiveDirection). Floor change (pager / dropdown / 3D slab
-// click) -> setActiveFloor + re-render panel + re-apply direction.
+// The v3 panel replaces the v2 per-direction cable groups with a flat
+// equipment list (一级/二级 配电箱 + 仅异常 filter). Cables are still
+// counted server-side and shown as bundle markers in 3D, but never as rows.
+//
+// Floor change (pager / dropdown / 3D slab click / 3D bundle click)
+// -> setActiveFloor + re-render panel with the new floor's rooms + equipment.
 // Back button (#btn-back) -> dispose 3D, then onBack().
 //
-// State held here: floor index (into building.floors) + active direction.
-// app.js owns the higher-level shared state. Canned data only. ES module.
+// State held here: floor index (into building.floors) + active direction
+// (still drives the 3D facade highlight on bundle selection, but the v3
+// panel has no direction concept of its own).
+// app.js owns the higher-level shared state. ES module.
 
 import { initBuilding3D } from './building3d.js';
 import { renderFloorPanel } from './floor-panel.js';
@@ -41,12 +45,17 @@ export function initBuildingView(container, building, onBack) {
   }
 
   const floors = building.floors;
+  // v3 detail payload: rooms + equipment sit at the building level (not per
+  // floor). Pre-filter them per floor when wiring the panel.
+  const allRooms = Array.isArray(building.rooms) ? building.rooms : [];
+  const allEquipment = Array.isArray(building.equipment) ? building.equipment : [];
+
   if (bldName) bldName.textContent = building.name;
 
   // --- local state ---
   let idx = 0;              // index into floors[]; current floor
   let activeDir = null;     // 'Dong'|'Nan'|'Xi'|'Bei' | null
-  let panelHandle = null;   // { highlightDirection } from renderFloorPanel
+  let panelHandle = null;   // { highlightRoom, setFilter, getFilter } from renderFloorPanel
   let disposed = false;
 
   // --- 3D wireframe anchor (slabs clickable to jump floors; bundle markers
@@ -60,21 +69,13 @@ export function initBuildingView(container, building, onBack) {
     onSelectBundle: (floorNo, dir) => {
       if (disposed) return;
       const i = floors.findIndex((f) => f.floorNo === floorNo);
-      // Always sync the active direction, then re-render so the panel group
-      // for `dir` is highlighted + expanded on the right floor.
+      // Sync the active direction, then jump floors so the panel re-renders
+      // for the right floor.
       activeDir = dir;
       if (i >= 0) idx = i;
       renderCurrent();
     },
   });
-
-  // --- direction sync ---
-  // The per-floor panel's direction group headers are the SINGLE direction
-  // selector: a group click drives the 3D facade highlight.
-  function setDirection(dir) {
-    activeDir = dir;
-    three.setActiveDirection(dir);
-  }
 
   // --- floor rendering / paging ---
   function renderCurrent() {
@@ -82,13 +83,21 @@ export function initBuildingView(container, building, onBack) {
     // The <select> shows "label · pos/total"; sync its value to the current
     // floor. Setting .value programmatically does NOT fire 'change'.
     floorSelect.value = String(idx);
-    // Re-render the panel for this floor. The callback syncs the 3D facade.
-    panelHandle = renderFloorPanel(panelEl, floor, (dir) => {
-      setDirection(dir);
-    });
+
+    // v3 panel: pass rooms + equipment pre-filtered to this floorNo.
+    // The panel itself does the type / 仅异常 filtering.
+    const floorNo = floor ? floor.floorNo : null;
+    const rooms = floorNo == null
+      ? []
+      : allRooms.filter((r) => r && r.floorNo === floorNo);
+    const equipment = floorNo == null
+      ? []
+      : allEquipment.filter((e) => e && e.floorNo === floorNo);
+
+    panelHandle = renderFloorPanel(panelEl, floor, { rooms, equipment });
+
     three.setActiveFloor(floor ? floor.floorNo : null);
     three.setActiveDirection(activeDir);
-    if (panelHandle && activeDir) panelHandle.highlightDirection(activeDir);
     updatePagerButtons();
   }
 

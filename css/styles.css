@@ -376,3 +376,166 @@ body {
 .map-filter__actions button:hover {
   background: #dcebfa;
 }
+
+/* ---------- v3 equipment floor panel ---------- */
+/* The v3 floor panel replaces the v2 per-direction cable groups with a
+   flat equipment list (一级/二级配电箱) + a type / 仅异常 filter bar. */
+
+/* floor header above the card (mirrors the pager's "label · pos/total"). */
+.floor-panel__header {
+  font-weight: 600;
+  font-size: 15px;
+  padding: 4px 2px 8px;
+  color: var(--ink);
+}
+
+/* filter bar: type buttons (left) + 仅异常 checkbox (right). */
+.eq-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 4px 10px;
+  border-bottom: 1px dashed var(--line);
+  margin-bottom: 8px;
+}
+.eq-filter-bar__type {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.eq-filter-bar__type:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.eq-filter-bar__type.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.eq-filter-bar__abnormal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;          /* push to right end of the filter bar */
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: none;
+}
+.eq-filter-bar__checkbox {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* list card — border + background, mirrors the .dir-group look. */
+.eq-floor-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.eq-floor-card__list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* empty state when filter narrows to zero rows. */
+.eq-empty {
+  padding: 14px 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* one equipment row: badge + name + room + status. */
+.eq-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.eq-row:last-child {
+  border-bottom: none;
+}
+.eq-row:hover {
+  background: var(--accent-soft);
+}
+.eq-row.is-room-highlight {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  padding-left: 9px;          /* compensate for the highlight border */
+}
+
+.eq-row__name {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eq-row__room {
+  color: var(--ink-soft);
+  font-size: 12px;
+  flex: 0 0 auto;
+  max-width: 40%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* small colored square naming the equipment type. 一级=green, 二级=blue. */
+.eq-type-badge {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: #fff;
+  flex: 0 0 auto;
+}
+.eq-type-badge--一级 { background: var(--in); }
+.eq-type-badge--二级 { background: var(--accent); }
+.eq-type-badge--unknown { background: var(--ink-soft); }
+
+/* status: dot + text, color set by modifier class. */
+.eq-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.eq-status::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.eq-status--online  { color: var(--in); }
+.eq-status--offline { color: var(--out); }
+.eq-status--unknown { color: var(--ink-soft); }
+
+/* filtered total at the bottom of the panel. */
+.eq-total {
+  padding: 8px 4px 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
