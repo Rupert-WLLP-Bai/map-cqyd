@@ -31,8 +31,10 @@ Cable    = {
 
 - Direction labels shown in Chinese in the UI: `Dong=东, Nan=南, Xi=西, Bei=北`
   (see `js/data.js` `DIRECTION_ZH`).
-- Each floor has 15+ cables spread across all 4 directions, in/out mix.
-- 3 buildings, each 4-8 floors. Canned only — NO fetch to any backend.
+- Each floor has 1+ cables spread across all 4 directions, in/out mix.
+- ~1,000 buildings, each 4-8 floors. Buildings are served by the mock
+  backend described in §5 below; the front end does not import any
+  canned BUILDINGS array directly.
 
 ## 2. Shared state
 
@@ -128,7 +130,28 @@ Main controller. Imports `BUILDINGS` from `data.js`, `initMapView` from
 `.view--hidden` class. `onSelectBuilding` → switch to building view and
 init `building-view`. `onBack` → dispose building view, return to map.
 
-## 5. Red lines (must hold)
+## 5. API contract (mock backend)
+
+The demo is served by a single Node Express process (`server/index.js`)
+that boots the in-memory dataset once and exposes it read-only:
+
+```
+GET /api/buildings
+  200 [{ id, name, lng, lat, address, floorCount, cableCount }, ...]
+  (list of ~1k summaries; floors/cables are NOT inlined)
+
+GET /api/buildings/:id
+  200 { id, name, lng, lat, address, floorCount, cableCount,
+         floors: [{ floorNo, label, cables: [Cable, ...] }, ...] }
+  404 { error: 'not found', id }
+```
+
+- All responses are JSON. No pagination: the full list is < 200KB,
+  per-building detail < 50KB.
+- The front end talks to the backend via `js/api.js` only; it does NOT
+  import any canned BUILDINGS array.
+
+## 6. Red lines (must hold)
 
 1. **NO cables drawn in 3D.** The 3D scene is ONLY a building wireframe
    anchor: floor highlight + facade highlight.
@@ -136,15 +159,23 @@ init `building-view`. `onBack` → dispose building view, return to map.
    NEVER a flat list of 15+ items.
 3. **3D stays MINIMAL** — no flythrough, no auto-rotate, no particle/glow/
    animation gimmicks; just a wireframe the viewer can drag to rotate.
-4. **Test/canned data ONLY** — no fetch to any backend, no real
-   resource-management-system integration.
-5. **Leaflet + Three.js via CDN** (script tag or ESM); zero npm, zero build step.
+4. **All ~1k buildings lie within the 两江新区 bbox** —
+   `lng ∈ [106.48, 106.72]`, `lat ∈ [29.52, 29.74]`. Samples that fall
+   outside are rejected by the generator.
+5. **Cable schema is unchanged** from v1: every cable is
+   `{ id, name, direction, io, peer, type, cores }`.
+6. **Mock backend: no database.** Data is generated once at boot
+   (fixed seed → stable across restarts) and is read-only. No
+   write/edit/delete endpoints exist.
+7. **Leaflet + Three.js via CDN** (script tag or ESM); zero build step.
 
-## 6. How to run
+## 7. How to run
 
-Serve the dir statically (ESM needs http, not file://):
+Run the Node Express mock backend (it also serves the static front end
+on the same port; ESM modules need http, not `file://`):
 ```
 cd /Users/pejoyll/Desktop/code/map-cqyd
-python3 -m http.server 8000
+npm install
+node server/index.js
 # open http://localhost:8000
 ```
