@@ -17,8 +17,14 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
 const router = Router();
 
-// GET /  -> project root's index.html.
+// GET / and GET /index.html  -> project root's index.html. Both paths
+// resolve to the same file so a bare visit and an explicit /index.html
+// request both succeed (the browser-side fetch chain does request the
+// literal /index.html path).
 router.get('/', (_req, res) => {
+  res.sendFile(path.join(PROJECT_ROOT, 'index.html'));
+});
+router.get('/index.html', (_req, res) => {
   res.sendFile(path.join(PROJECT_ROOT, 'index.html'));
 });
 

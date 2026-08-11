@@ -12,10 +12,13 @@
 //
 // An expanded group virtualizes its cable table (fixed 28px rows, only the
 // visible slice in the DOM) so a 200+ cable 设备间 direction stays smooth.
-//
-// Canned data only. No backend, no fetch. ES module.
 
-import { DIRECTIONS, DIRECTION_ZH } from './data.js';
+// Direction enumeration + Chinese labels. These used to live in ./data.js;
+// that file is gone (v2 moved the test data to the mock backend), so the
+// constants are defined here — they're constants, not test data, and this
+// module is their only consumer.
+const DIRECTIONS = ['Dong', 'Nan', 'Xi', 'Bei'];
+const DIRECTION_ZH = { Dong: '东', Nan: '南', Xi: '西', Bei: '北' };
 
 // --- small DOM helper -----------------------------------------------------
 function h(tag, cls, text) {
