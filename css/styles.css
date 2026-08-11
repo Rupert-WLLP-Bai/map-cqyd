@@ -108,7 +108,13 @@ body {
 }
 .pager-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.floor-label { font-weight: 600; font-size: 15px; min-width: 60px; text-align: center; }
+.floor-select {
+  font: inherit; font-size: 14px; font-weight: 600;
+  color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 4px;
+  padding: 5px 10px; cursor: pointer; min-width: 120px;
+}
+.floor-select:hover { border-color: var(--accent); color: var(--accent); }
 
 /* floor panel */
 .floor-panel {

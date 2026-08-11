@@ -1,24 +1,19 @@
 // js/building-view.js
 //
 // Composes the interior view for one building:
-//   - Three.js wireframe anchor (right, #b3d)  -> initBuilding3D
-//   - Floor pager (#floor-pager prev/next + #floor-label)
+//   - Three.js wireframe anchor (right, #b3d) -> initBuilding3D
+//       (slabs are clickable to jump floors; onSelectFloor drives idx)
+//   - Floor pager (#floor-pager prev/next + a #floor-select dropdown to jump)
 //   - Per-floor cable panel grouped by direction (left, #floor-panel)
 //     -> renderFloorPanel
-//   - A small row of direction pills (东/南/西/北) this view exposes so the
-//     viewer can drive the facade highlight from the building-view UI.
 //
-// BIDIRECTIONAL direction sync (the red-line reason this module exists):
-//   - panel direction group click  -> 3D setActiveDirection + pill active
-//   - direction pill click         -> 3D setActiveDirection + panel
-//                                     highlightDirection (mark + expand)
-//   - floor change (pager)         -> 3D setActiveFloor + re-render panel,
-//                                     re-apply the current direction
-//   - back button (#btn-back)      -> dispose 3D, then onBack()
+// Direction sync: a panel direction group click drives the 3D facade
+// highlight (setActiveDirection). Floor change (pager / dropdown / 3D slab
+// click) -> setActiveFloor + re-render panel + re-apply direction.
+// Back button (#btn-back) -> dispose 3D, then onBack().
 //
 // State held here: floor index (into building.floors) + active direction.
-// app.js owns the higher-level shared state; this module just does what its
-// args + DOM tell it to. Canned data only. ES module.
+// app.js owns the higher-level shared state. Canned data only. ES module.
 
 import { initBuilding3D } from './building3d.js';
 import { renderFloorPanel } from './floor-panel.js';
@@ -37,11 +32,11 @@ export function initBuildingView(container, building, onBack) {
   const panelEl = container.querySelector('#floor-panel');
   const pagerPrev = container.querySelector('#pager-prev');
   const pagerNext = container.querySelector('#pager-next');
-  const floorLabel = container.querySelector('#floor-label');
+  const floorSelect = container.querySelector('#floor-select');
   const bldName = container.querySelector('#bld-name');
   const btnBack = container.querySelector('#btn-back');
 
-  if (!b3dEl || !panelEl || !pagerPrev || !pagerNext || !floorLabel) {
+  if (!b3dEl || !panelEl || !pagerPrev || !pagerNext || !floorSelect) {
     throw new Error('initBuildingView: required DOM mounts missing');
   }
 
@@ -54,13 +49,18 @@ export function initBuildingView(container, building, onBack) {
   let panelHandle = null;   // { highlightDirection } from renderFloorPanel
   let disposed = false;
 
-  // --- 3D wireframe anchor ---
-  const three = initBuilding3D(b3dEl, building);
+  // --- 3D wireframe anchor (slabs clickable to jump floors) ---
+  const three = initBuilding3D(b3dEl, building, {
+    onSelectFloor: (floorNo) => {
+      if (disposed) return;
+      const i = floors.findIndex((f) => f.floorNo === floorNo);
+      if (i >= 0 && i !== idx) { idx = i; renderCurrent(); }
+    },
+  });
 
   // --- direction sync ---
   // The per-floor panel's direction group headers are the SINGLE direction
-  // selector: a group click drives the 3D facade highlight. No second pill
-  // bar — two parallel selectors were redundant clutter for a clarity demo.
+  // selector: a group click drives the 3D facade highlight.
   function setDirection(dir) {
     activeDir = dir;
     three.setActiveDirection(dir);
@@ -69,18 +69,14 @@ export function initBuildingView(container, building, onBack) {
   // --- floor rendering / paging ---
   function renderCurrent() {
     const floor = floors[idx];
-    // Show position in the stack so a leader can tell "3F of 8" at a glance.
-    floorLabel.textContent = floor
-      ? `${floor.label}  ·  ${idx + 1}/${floors.length}`
-      : '—';
-    // Re-render the panel for this floor. Pass a notify callback so a
-    // direction group click syncs 3D + pills (fromPanel=true).
+    // The <select> shows "label · pos/total"; sync its value to the current
+    // floor. Setting .value programmatically does NOT fire 'change'.
+    floorSelect.value = String(idx);
+    // Re-render the panel for this floor. The callback syncs the 3D facade.
     panelHandle = renderFloorPanel(panelEl, floor, (dir) => {
       setDirection(dir);
     });
-    // 3D floor highlight for the new floor.
     three.setActiveFloor(floor ? floor.floorNo : null);
-    // re-apply the standing direction selection to the new floor's panel/3D.
     three.setActiveDirection(activeDir);
     if (panelHandle && activeDir) panelHandle.highlightDirection(activeDir);
     updatePagerButtons();
@@ -90,6 +86,23 @@ export function initBuildingView(container, building, onBack) {
     pagerPrev.disabled = idx <= 0;
     pagerNext.disabled = idx >= floors.length - 1;
   }
+
+  // Floor dropdown: jump straight to any floor (scales to 20+ floors).
+  floorSelect.replaceChildren(); // clear any options from a previous entry
+  for (let i = 0; i < floors.length; i += 1) {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = `${floors[i].label}  ·  ${i + 1}/${floors.length}`;
+    floorSelect.appendChild(opt);
+  }
+  floorSelect.addEventListener('change', () => {
+    if (disposed) return;
+    const i = Number(floorSelect.value);
+    if (Number.isInteger(i) && i >= 0 && i < floors.length && i !== idx) {
+      idx = i;
+      renderCurrent();
+    }
+  });
 
   pagerPrev.addEventListener('click', () => {
     if (disposed) return;
@@ -113,6 +126,7 @@ export function initBuildingView(container, building, onBack) {
     disposed = true;
     try { three.dispose(); } catch (_) { /* noop */ }
     if (panelEl) panelEl.replaceChildren();
+    if (floorSelect) floorSelect.replaceChildren();
     panelHandle = null;
   }
 

@@ -2,11 +2,13 @@
 //
 // Minimal Three.js building WIREFRAME anchor.
 //
-// Exposes:  initBuilding3D(container, building) -> {
+// Exposes:  initBuilding3D(container, building, opts?) -> {
 //             setActiveFloor(floorNo),
 //             setActiveDirection(dir | null),
 //             dispose()
 //           }
+//   opts.onSelectFloor(floorNo)  optional — fired when a floor slab is clicked
+//     (Q2 many-floors navigation: click a slab to jump to that floor).
 //
 // RED LINE: NO cables are ever drawn in 3D. The scene is ONLY a building
 // wireframe: a stack of floor slabs (thin edges). It highlights the active
@@ -47,11 +49,13 @@ const SLAB_H   = 1.0;  // Y height of one floor slab
 const FLOOR_GAP = 0.2;  // vertical gap between slabs
 const FLOOR_STEP = SLAB_H + FLOOR_GAP;
 
-export function initBuilding3D(container, building) {
+export function initBuilding3D(container, building, opts = {}) {
   if (!container) throw new Error('initBuilding3D: container is required');
   if (!building || !Array.isArray(building.floors) || building.floors.length === 0) {
     throw new Error('initBuilding3D: building with floors is required');
   }
+  // Optional callback when a floor slab is clicked (Q2: jump to that floor).
+  const onSelectFloor = typeof opts.onSelectFloor === 'function' ? opts.onSelectFloor : null;
 
   const floors = building.floors;
   const floorCount = floors.length;
@@ -109,6 +113,7 @@ export function initBuilding3D(container, building) {
     });
     const fill = new THREE.Mesh(boxGeo, fillMat);
     fill.position.set(0, y, 0);
+    fill.userData.floorNo = floorNo; // for raycaster click-to-jump
 
     slabGroup.add(lineSeg);
     slabGroup.add(fill);
@@ -216,6 +221,52 @@ export function initBuilding3D(container, building) {
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(container);
   window.addEventListener('resize', resize);
+
+  // --- click a floor slab to jump (Q2 many-floors navigation) ---
+  // Distinguish a click from an OrbitControls drag via movement + time on
+  // pointerup, so dragging to rotate never triggers a floor jump. Raycasts
+  // against the slab fill meshes; the nearest hit wins.
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let downPos = null;
+  let downT = 0;
+
+  function setPointerNDC(ev) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  function slabAtPointer() {
+    raycaster.setFromCamera(pointer, camera);
+    const meshes = slabs.map((s) => s.fill);
+    const hits = raycaster.intersectObjects(meshes, false);
+    return hits.length ? hits[0].object : null;
+  }
+
+  renderer.domElement.addEventListener('pointerdown', (ev) => {
+    downPos = { x: ev.clientX, y: ev.clientY };
+    downT = ev.timeStamp;
+  });
+  renderer.domElement.addEventListener('pointerup', (ev) => {
+    if (!downPos) return;
+    const moved = Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y);
+    const dt = ev.timeStamp - downT;
+    downPos = null;
+    // it was a drag to rotate, not a click -> ignore
+    if (moved > 5 || dt > 500) return;
+    if (!onSelectFloor) return;
+    setPointerNDC(ev);
+    const mesh = slabAtPointer();
+    const fn = mesh ? mesh.userData.floorNo : null;
+    if (fn != null) onSelectFloor(fn);
+  });
+  // hover cursor: pointer when over a slab (skipped during a drag)
+  renderer.domElement.addEventListener('pointermove', (ev) => {
+    if (downPos || !onSelectFloor) return;
+    setPointerNDC(ev);
+    renderer.domElement.style.cursor = slabAtPointer() ? 'pointer' : '';
+  });
 
   // --- render loop (static scene; no auto-rotate, no animations) ---
   let rafId = 0;
