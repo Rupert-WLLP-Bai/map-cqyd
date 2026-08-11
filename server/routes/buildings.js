@@ -22,7 +22,13 @@ import { wgs84ToGcj02 } from '../lib/wgs84-to-gcj02.js';
 const router = Router();
 
 // Shape: { ...building, lng, lat } -> { ...building, lng, lat } in GCJ-02.
-// Light deep clone so we never mutate the generator's cached objects.
+// Light shallow clone so we never mutate the generator's cached objects.
+// v3 note: this function ONLY rewrites the top-level `lng`/`lat`. All
+// other fields (including v3's `footprint`, `equipment[].position`, and
+// `equipmentTypes`) are passed through verbatim — they are either pure
+// data (strings, ids, names) or local 2D floor coords expressed in metres
+// inside the slab [0, 1] / [-2, 2]. Re-projecting them through GCJ-02
+// would corrupt the floor panel layout.
 function toGcj02(b) {
   const [lng, lat] = wgs84ToGcj02(b.lng, b.lat);
   return { ...b, lng, lat };

@@ -101,3 +101,79 @@ test('cable IDs are unique across the whole generated set', () => {
     }
   }
 });
+
+// ----- v3: Equipment + Room + footprint ------------------------------------
+
+const VALID_EQUIPMENT_TYPES = new Set([
+  '一级配电箱',
+  '二级配电箱',
+  'OTN',
+  '光交',
+]);
+const VALID_EQUIPMENT_STATUS = new Set(['online', 'offline']);
+
+test('v3: every building has a non-empty equipmentTypes list', () => {
+  for (const b of buildings) {
+    assert.ok(
+      Array.isArray(b.equipmentTypes) && b.equipmentTypes.length >= 1,
+      `building ${b.id} has empty equipmentTypes`
+    );
+  }
+});
+
+test('v3: every equipmentTypes entry is a legal type', () => {
+  for (const b of buildings) {
+    for (const t of b.equipmentTypes) {
+      assert.ok(
+        VALID_EQUIPMENT_TYPES.has(t),
+        `building ${b.id} has unknown equipment type "${t}"`
+      );
+    }
+  }
+});
+
+test('v3: every building has at least one 一级配电箱', () => {
+  for (const b of buildings) {
+    const has = (b.equipment || []).some((e) => e.type === '一级配电箱');
+    assert.ok(has, `building ${b.id} has no 一级配电箱`);
+  }
+});
+
+test('v3: every Equipment.status is online or offline', () => {
+  for (const b of buildings) {
+    for (const e of b.equipment || []) {
+      assert.ok(
+        VALID_EQUIPMENT_STATUS.has(e.status),
+        `bad status ${e.status} on ${e.id}`
+      );
+    }
+  }
+});
+
+test('v3: every Equipment.position.x and .position.y is in [0, 1]', () => {
+  for (const b of buildings) {
+    for (const e of b.equipment || []) {
+      assert.ok(
+        e.position && typeof e.position.x === 'number'
+          && e.position.x >= 0 && e.position.x <= 1,
+        `bad position.x on ${e.id}: ${e.position && e.position.x}`
+      );
+      assert.ok(
+        e.position && typeof e.position.y === 'number'
+          && e.position.y >= 0 && e.position.y <= 1,
+        `bad position.y on ${e.id}: ${e.position && e.position.y}`
+      );
+    }
+  }
+});
+
+test('v3: every building has rooms + equipment + footprint fields', () => {
+  for (const b of buildings) {
+    assert.ok(Array.isArray(b.rooms), `building ${b.id} missing rooms`);
+    assert.ok(Array.isArray(b.equipment), `building ${b.id} missing equipment`);
+    assert.ok(
+      b.footprint === null || Array.isArray(b.footprint),
+      `building ${b.id} footprint not null-or-array`
+    );
+  }
+});

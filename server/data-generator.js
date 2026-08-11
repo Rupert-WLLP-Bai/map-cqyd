@@ -21,7 +21,20 @@
 //
 // All rng is mulberry32 with a fixed seed → reproducible data.
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
 import { mulberry32 } from './lib/rng.js';
+import { generateRoomsAndEquipment } from './data/equipment-generator.js';
+
+// Load hand-curated footprints (v3). The data file is plain JSON keyed by
+// building ID, holding a `polygon` of local 2D coords. We assert the file
+// exists at module load so a missing/corrupt data file fails fast at boot
+// rather than silently leaving every footprint as null.
+const HERE = dirname(fileURLToPath(import.meta.url));
+const FOOTPRINTS_PATH = join(HERE, 'data', 'footprints.json');
+const footprints = JSON.parse(readFileSync(FOOTPRINTS_PATH, 'utf8'));
 
 // ----- constants -----------------------------------------------------------
 
@@ -317,6 +330,19 @@ function generateAll() {
     const id = `BLD-${String(idx).padStart(4, '0')}`;
     const floorCount = sampleFloorCount(rng);
     const floors = genFloors(id, floorCount);
+    // v3: per-building RNG for rooms + equipment, seeded from id + floor
+    // count so the data is stable across boots but varies by building.
+    const bldRng = mulberry32(hashStr(id) * 991 + floorCount * 17 + 5);
+    const { rooms, equipment } = generateRoomsAndEquipment(
+      { id, floorCount },
+      bldRng
+    );
+    // Footprint from the hand-curated JSON, or null (rectangular slab).
+    const fpEntry = footprints[id];
+    const footprint = fpEntry ? fpEntry.polygon : null;
+    // Unique types present in this building's equipment — used by the
+    // map filter panel to show counts per type per building set.
+    const equipmentTypes = Array.from(new Set(equipment.map((e) => e.type)));
     return {
       id,
       name: sampleName(rng, sourceName),
@@ -325,6 +351,10 @@ function generateAll() {
       address: sampleAddress(rng, lng, lat),
       floorCount,
       floors,
+      rooms,
+      equipment,
+      footprint,
+      equipmentTypes,
     };
   }
 }
@@ -345,6 +375,7 @@ export function getBuildingsList() {
     address: b.address,
     floorCount: b.floorCount,
     cableCount: b.floors.reduce((acc, f) => acc + f.cables.length, 0),
+    equipmentTypes: b.equipmentTypes,
   }));
 }
 
@@ -363,5 +394,8 @@ export function getBuildingDetail(id) {
       label: f.label,
       cables: f.cables,
     })),
+    footprint: b.footprint,
+    rooms: b.rooms,
+    equipment: b.equipment,
   };
 }
