@@ -80,3 +80,380 @@
   height: 100%;
   width: 100%;
 }
+
+/* ---------- v4 building view (appended by BUILDING agent) ---------- */
+/* Layout: topbar (full width) + bld-body (left 60% / right 40%).
+   The right side hosts the Three.js .b3d-mount; the left side stacks
+   the .floor-pager above the .floor-panel. */
+.bld-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: hsl(var(--background));
+  border-bottom: 1px solid hsl(var(--border));
+  flex: 0 0 auto;
+}
+
+.bld-name {
+  font-weight: 600;
+  font-size: 16px;
+  color: hsl(var(--foreground));
+}
+
+.btn-back {
+  font: inherit;
+  font-size: 13px;
+  color: hsl(var(--primary));
+  background: hsl(var(--accent));
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.btn-back:hover {
+  background: hsl(var(--accent-foreground) / 0.1);
+}
+
+.bld-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+.bld-left {
+  flex: 0 0 60%;
+  max-width: 60%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  min-width: 0;
+}
+
+.bld-right {
+  flex: 1 1 40%;
+  min-width: 0;
+}
+
+/* ---------- floor pager ---------- */
+.floor-pager {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+}
+
+.pager-btn {
+  font: inherit;
+  font-size: 13px;
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.pager-btn:hover:not(:disabled) {
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary));
+}
+
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.floor-select {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  min-width: 120px;
+}
+
+.floor-select:hover {
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary));
+}
+
+/* ---------- floor panel container (panel paints itself) ---------- */
+.floor-panel {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 8px 16px 24px;
+  background: hsl(var(--background));
+}
+
+/* ---------- 3D mount + CSS2D overlay ---------- */
+/* Plain CSS for the 3D container layout: position:relative so the absolute
+   CSS2D overlay (.b3d-overlay { inset:0 }) can sit over the canvas without
+   any inline width/height writes from Three. The canvas itself fills the
+   container via the 100% width/height rule below. */
+.b3d-mount {
+  height: 100%;
+  width: 100%;
+  background: #1b2430;
+  position: relative; /* anchor the CSS2D overlay appended by building-3d.tsx */
+}
+
+.b3d-mount canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.b3d-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ---------- v3 equipment floor panel (mirrors css/styles.css) ---------- */
+.floor-panel__header {
+  font-weight: 600;
+  font-size: 15px;
+  padding: 4px 2px 8px;
+  color: hsl(var(--foreground));
+}
+
+.eq-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 4px 10px;
+  border-bottom: 1px dashed hsl(var(--border));
+  margin-bottom: 8px;
+}
+
+.eq-filter-bar__type {
+  font: inherit;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.eq-filter-bar__type:hover {
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary));
+}
+
+.eq-filter-bar__type.is-active {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary));
+  font-weight: 600;
+}
+
+.eq-filter-bar__abnormal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  user-select: none;
+}
+
+.eq-filter-bar__checkbox {
+  margin: 0;
+  cursor: pointer;
+}
+
+.eq-floor-card {
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--background));
+  overflow: hidden;
+}
+
+.eq-floor-card__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.eq-empty {
+  padding: 14px 12px;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
+
+.eq-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 13px;
+}
+
+.eq-row:last-child {
+  border-bottom: none;
+}
+
+.eq-row:hover {
+  background: hsl(var(--accent));
+}
+
+.eq-row.is-room-highlight {
+  background: hsl(var(--accent));
+  border-left: 3px solid hsl(var(--primary));
+  padding-left: 9px;
+}
+
+.eq-row__name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eq-row__room {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  flex: 0 0 auto;
+  max-width: 40%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eq-type-badge {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.eq-type-badge--一级 { background: #1f8a55; }
+.eq-type-badge--二级 { background: #2b6cb0; }
+.eq-type-badge--unknown { background: hsl(var(--muted-foreground)); }
+
+.eq-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.eq-status::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.eq-status--online  { color: #1f8a55; }
+.eq-status--offline { color: #b4351f; }
+.eq-status--unknown { color: hsl(var(--muted-foreground)); }
+
+.eq-total {
+  padding: 8px 4px 0;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---------- 3D CSS2D badges / labels (mounted by building-3d.tsx) ---------- */
+.b3d-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: #f5f6f8;
+  background: rgba(20, 28, 40, 0.72);
+  padding: 1px 6px;
+  border-radius: 9px;
+  white-space: nowrap;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.18s ease, background 0.18s ease, font-size 0.18s ease;
+}
+
+.b3d-badge__in  { color: #6fe0a8; margin-right: 3px; }
+.b3d-badge__out { color: #ff9d8a; }
+
+.b3d-badge.is-dim { opacity: 0.32; }
+
+.b3d-badge.is-hover {
+  opacity: 1;
+  background: rgba(20, 28, 40, 0.88);
+  font-size: 11px;
+  padding: 2px 7px;
+}
+
+.b3d-badge.is-hover::before {
+  content: attr(data-label);
+  margin-right: 6px;
+  color: #cfe0f3;
+  font-weight: 600;
+}
+
+.b3d-dir-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: rgba(95, 105, 120, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  user-select: none;
+}
+
+.b3d-floor-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(95, 105, 120, 0.55);
+  letter-spacing: 0.3px;
+  pointer-events: none;
+  user-select: none;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.b3d-floor-label.is-active {
+  color: hsl(var(--primary));
+  font-weight: 700;
+  opacity: 1;
+}
