@@ -13,7 +13,10 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { renderToString } from 'react-dom/server';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 
 // Leaflet's default marker icon URLs are relative paths
 // ('marker-icon.png' etc). With Next.js those paths 404 because we don't
