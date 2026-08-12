@@ -1,0 +1,42 @@
+{
+  "name": "map-cqyd",
+  "version": "0.4.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "smoke": "node --experimental-strip-types --test scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "three": "^0.160.0",
+    "leaflet": "^1.9.4",
+    "leaflet.markercluster": "^1.5.3",
+    "@tanstack/react-query": "^5.59.0",
+    "zustand": "^4.5.5",
+    "tailwindcss": "^3.4.13",
+    "postcss": "^8.4.47",
+    "autoprefixer": "^10.4.20",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.3",
+    "lucide-react": "^0.446.0",
+    "@radix-ui/react-checkbox": "^1.1.2",
+    "@radix-ui/react-slot": "^1.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.160.0",
+    "@types/leaflet": "^1.9.12",
+    "@types/node": "^20.16.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^15.0.0",
+    "tailwindcss-animate": "^1.0.7"
+  }
+}
