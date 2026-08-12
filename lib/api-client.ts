@@ -27,8 +27,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function fetchBuildings(): Promise<BuildingListEntry[]> {
-  return request<BuildingListEntry[]>(LIST_PATH, { cache: 'no-store' });
+export async function fetchBuildings(): Promise<Building[]> {
+  const list = await request<BuildingListEntry[]>(LIST_PATH, {
+    cache: 'no-store',
+  });
+  // GET /api/buildings omits the heavy floors/rooms/equipment arrays (~1000
+  // buildings x ~10k cables would be megabytes on the wire). Fill the absent
+  // members with empty defaults so the returned objects genuinely satisfy
+  // `Building` at runtime instead of being cast into a lie: map code reads
+  // only id/name/lng/lat/equipmentTypes, and the per-building detail request
+  // supplies the real arrays.
+  return list.map((b) => ({
+    floors: [],
+    rooms: [],
+    equipment: [],
+    footprint: null,
+    ...b,
+  }));
 }
 
 export async function fetchBuilding(id: string): Promise<Building> {

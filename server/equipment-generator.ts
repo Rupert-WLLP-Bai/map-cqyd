@@ -23,7 +23,6 @@
 // EQ-NNNNN).
 
 import type { Building, Equipment, EquipmentType, Room } from '@/lib/types';
-import { mulberry32 } from './rng.ts';
 
 const MAIN_NAMES = ['主设备间', 'B栋机房', '进线间', '核心机房'];
 const AUX_NAMES  = ['辅设备间', '配线间', '通信间', '弱电设备间'];

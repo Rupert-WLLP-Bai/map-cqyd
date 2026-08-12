@@ -25,12 +25,9 @@
 // preserves the v3 algorithm and seed verbatim so output is byte-identical
 // across the JS→TS migration.
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-
-import { mulberry32 } from './rng.ts';
-import { generateRoomsAndEquipment } from './equipment-generator.ts';
+import { mulberry32 } from './rng';
+import { generateRoomsAndEquipment } from './equipment-generator';
+import footprintsJson from './data/footprints.json' with { type: 'json' };
 import type {
   Building,
   BuildingListEntry,
@@ -42,17 +39,16 @@ import type {
   Room,
 } from '@/lib/types';
 
-// Load hand-curated footprints (v3). The data file is plain JSON keyed by
-// building ID, holding a `polygon` of local 2D coords. We read the file at
-// module load (rather than `import` it) so a missing/corrupt data file fails
-// fast at boot rather than silently leaving every footprint as null. This
-// also keeps the file importable by both Next.js and the Node
-// --experimental-strip-types runner used by the smoke script.
-const HERE = dirname(fileURLToPath(import.meta.url));
-const FOOTPRINTS_PATH = join(HERE, 'data', 'footprints.json');
-const footprints = JSON.parse(readFileSync(FOOTPRINTS_PATH, 'utf8')) as Record<
+// Hand-curated footprints (v3). The data file is plain JSON keyed by building
+// ID, holding a `polygon` of local 2D coords (plus a top-level `_comment`,
+// which no BLD-* lookup can ever hit). It is imported as a module rather than
+// read from disk at runtime so the bytes are bundled by webpack for the Next
+// route handlers *and* resolvable by the Node --experimental-strip-types
+// runner used by scripts/smoke.mjs — neither of which can rely on a path
+// derived from `import.meta.url` once the module has been bundled.
+const footprints = footprintsJson as unknown as Record<
   string,
-  { _shape: string; polygon: FootprintVertex[] }
+  { _shape?: string; polygon: FootprintVertex[] } | undefined
 >;
 
 // ----- constants -----------------------------------------------------------
