@@ -1,16 +1,18 @@
-// server/data-generator.js
+// server/data-generator.ts
 //
-// Mock dataset for the map-cqyd v2 demo. Generates ~1000 buildings in the
-// 两江新区 (Liangjiang New Area) bbox at boot and caches the result in
-// memory. No DB; the seed is fixed so output is stable across restarts.
+// Mock dataset for the map-cqyd v4 demo (TS port of v3 server/data-generator.js).
+// Generates ~1000 buildings in the 两江新区 (Liangjiang New Area) bbox at boot
+// and caches the result in memory. No DB; the seed is fixed so output is
+// stable across restarts.
 //
-// Shape:
-//   Building = { id, name, lng, lat, address, floors: Floor[] }
+// Shape (per lib/types.ts):
+//   Building = { id, name, lng, lat, address, floorCount, floors, rooms,
+//                equipment, footprint, equipmentTypes, cableCount }
 //   Floor    = { floorNo, label, cables: Cable[] }
 //   Cable    = { id, name, direction: 'Dong'|'Nan'|'Xi'|'Bei',
 //                io: 'in'|'out', peer, type, cores }
 //
-// Distribution:
+// Distribution (unchanged from v3):
 //   - ~70% of buildings from 6 CBD Gaussian clusters (CBD centers from spec).
 //   - ~30% from 6 main-street corridors (along-track + perpendicular Gaussian).
 //   - 4-8 floors per building (uniform).
@@ -19,26 +21,43 @@
 //     tuned so the total cable count lands in the 9000-11000 range required
 //     by the smoke test.
 //
-// All rng is mulberry32 with a fixed seed → reproducible data.
+// All rng is mulberry32 with a fixed seed → reproducible data. The TS port
+// preserves the v3 algorithm and seed verbatim so output is byte-identical
+// across the JS→TS migration.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { mulberry32 } from './lib/rng.js';
-import { generateRoomsAndEquipment } from './data/equipment-generator.js';
+import { mulberry32 } from './rng.ts';
+import { generateRoomsAndEquipment } from './equipment-generator.ts';
+import type {
+  Building,
+  BuildingListEntry,
+  Cable,
+  CableIo,
+  Direction,
+  Floor,
+  FootprintVertex,
+  Room,
+} from '@/lib/types';
 
 // Load hand-curated footprints (v3). The data file is plain JSON keyed by
-// building ID, holding a `polygon` of local 2D coords. We assert the file
-// exists at module load so a missing/corrupt data file fails fast at boot
-// rather than silently leaving every footprint as null.
+// building ID, holding a `polygon` of local 2D coords. We read the file at
+// module load (rather than `import` it) so a missing/corrupt data file fails
+// fast at boot rather than silently leaving every footprint as null. This
+// also keeps the file importable by both Next.js and the Node
+// --experimental-strip-types runner used by the smoke script.
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FOOTPRINTS_PATH = join(HERE, 'data', 'footprints.json');
-const footprints = JSON.parse(readFileSync(FOOTPRINTS_PATH, 'utf8'));
+const footprints = JSON.parse(readFileSync(FOOTPRINTS_PATH, 'utf8')) as Record<
+  string,
+  { _shape: string; polygon: FootprintVertex[] }
+>;
 
 // ----- constants -----------------------------------------------------------
 
-const SEED = 0xC4BE11; // arbitrary fixed seed — deterministic data
+const SEED = 0xc4be11; // arbitrary fixed seed — deterministic data
 const TARGET_BUILDINGS = 1000;
 const TOTAL_BUILDING_BUDGET = TARGET_BUILDINGS;
 const CBD_BUDGET = Math.round(TOTAL_BUILDING_BUDGET * 0.7);
@@ -55,12 +74,12 @@ const BBOX = {
 // 6 CBD centers + 2D Gaussian sigma (degrees, ~1-1.5 km radius). Verbatim
 // from the v2 design spec.
 const CBD_CLUSTERS = [
-  { name: '江北嘴',   lng: 106.583, lat: 29.575, sigma: 0.012 },
-  { name: '光电园',   lng: 106.518, lat: 29.605, sigma: 0.014 },
-  { name: '幸福广场', lng: 106.535, lat: 29.585, sigma: 0.010 },
-  { name: '观音桥',   lng: 106.575, lat: 29.585, sigma: 0.013 },
-  { name: '龙兴',     lng: 106.665, lat: 29.690, sigma: 0.018 },
-  { name: '汽博',     lng: 106.555, lat: 29.620, sigma: 0.011 },
+  { name: '江北嘴', lng: 106.583, lat: 29.575, sigma: 0.012 },
+  { name: '光电园', lng: 106.518, lat: 29.605, sigma: 0.014 },
+  { name: '幸福广场', lng: 106.535, lat: 29.585, sigma: 0.01 },
+  { name: '观音桥', lng: 106.575, lat: 29.585, sigma: 0.013 },
+  { name: '龙兴', lng: 106.665, lat: 29.69, sigma: 0.018 },
+  { name: '汽博', lng: 106.555, lat: 29.62, sigma: 0.011 },
 ];
 
 // 6 main-street corridors. Each is a line segment in bbox-local coordinates;
@@ -68,15 +87,15 @@ const CBD_CLUSTERS = [
 // perpendicular 2D Gaussian (sigma ~ 50-100 m equivalent in degrees).
 const STREET_CORRIDORS = [
   { name: '金渝大道', startLng: 106.49, startLat: 29.62, endLng: 106.58, endLat: 29.62 },
-  { name: '金开大道', startLng: 106.55, startLat: 29.55, endLng: 106.66, endLat: 29.70 },
+  { name: '金开大道', startLng: 106.55, startLat: 29.55, endLng: 106.66, endLat: 29.7 },
   { name: '渝澳大道', startLng: 106.57, startLat: 29.59, endLng: 106.59, endLat: 29.55 },
-  { name: '北滨一路', startLng: 106.48, startLat: 29.58, endLng: 106.60, endLat: 29.58 },
-  { name: '机场路',   startLng: 106.48, startLat: 29.55, endLng: 106.48, endLat: 29.65 },
-  { name: '龙驿大道', startLng: 106.60, startLat: 29.62, endLng: 106.72, endLat: 29.65 },
+  { name: '北滨一路', startLng: 106.48, startLat: 29.58, endLng: 106.6, endLat: 29.58 },
+  { name: '机场路', startLng: 106.48, startLat: 29.55, endLng: 106.48, endLat: 29.65 },
+  { name: '龙驿大道', startLng: 106.6, startLat: 29.62, endLng: 106.72, endLat: 29.65 },
 ];
-const PERP_SIGMA = 0.0008;   // ~90 m in latitude
-const ALONG_MU = 0.5;        // Gaussian around midpoint
-const ALONG_SIGMA = 0.25;    // along-track spread
+const PERP_SIGMA = 0.0008; // ~90 m in latitude
+const ALONG_MU = 0.5; // Gaussian around midpoint
+const ALONG_SIGMA = 0.25; // along-track spread
 
 // Floors per building: uniform 4-8.
 const FLOOR_MIN = 4;
@@ -95,7 +114,7 @@ const FLOOR_CABLE_SIGMA = 1.5;
 const FLOOR_CABLE_MIN = 1;
 const FLOOR_CABLE_MAX = 200;
 
-const DIRECTIONS = ['Dong', 'Nan', 'Xi', 'Bei'];
+const DIRECTIONS: Direction[] = ['Dong', 'Nan', 'Xi', 'Bei'];
 
 const ROAD_WORDS = [
   '渝北大道', '金开大道', '龙华大道', '嘉鸿大道',
@@ -117,12 +136,12 @@ const CORES = [12, 24, 48, 96, 8, 16, 144, 4];
 
 // ----- helpers -------------------------------------------------------------
 
-function pick(rng, arr) {
+function pick<T>(rng: () => number, arr: readonly T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
 // Standard Normal sample via Box-Muller.
-function gaussian(rng) {
+function gaussian(rng: () => number): number {
   let u = 0;
   let v = 0;
   while (u === 0) u = rng();
@@ -130,7 +149,7 @@ function gaussian(rng) {
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
-function inBbox(lng, lat) {
+function inBbox(lng: number, lat: number): boolean {
   return (
     lng >= BBOX.minLng && lng <= BBOX.maxLng &&
     lat >= BBOX.minLat && lat <= BBOX.maxLat
@@ -139,14 +158,20 @@ function inBbox(lng, lat) {
 
 // Sample one CBD building (Gaussian around cluster center). May fall outside
 // the bbox — caller rejects and re-samples.
-function sampleCbdBuilding(rng, cluster) {
+function sampleCbdBuilding(
+  rng: () => number,
+  cluster: { lng: number; lat: number; sigma: number }
+): { lng: number; lat: number } {
   const lng = cluster.lng + gaussian(rng) * cluster.sigma;
   const lat = cluster.lat + gaussian(rng) * cluster.sigma;
   return { lng, lat };
 }
 
 // Sample one corridor building along a line segment.
-function sampleStreetBuilding(rng, corridor) {
+function sampleStreetBuilding(
+  rng: () => number,
+  corridor: { startLng: number; startLat: number; endLng: number; endLat: number }
+): { lng: number; lat: number } {
   const dx = corridor.endLng - corridor.startLng;
   const dy = corridor.endLat - corridor.startLat;
   // Perpendicular unit vector (rotated 90° in lng-lat plane).
@@ -168,14 +193,14 @@ function sampleStreetBuilding(rng, corridor) {
 }
 
 // Number of floors for this building — uniform in [FLOOR_MIN, FLOOR_MAX].
-function sampleFloorCount(rng) {
+function sampleFloorCount(rng: () => number): number {
   return FLOOR_MIN + Math.floor(rng() * (FLOOR_MAX - FLOOR_MIN + 1));
 }
 
 // Log-normal sample, clamped to [min, max]. Always >= min (smoke requires
 // every floor to have at least one cable). With SIGMA=1.5 the tail reaches
 // up to 200 (the "equipment room" floors).
-function sampleFloorCableCount(rng) {
+function sampleFloorCableCount(rng: () => number): number {
   let n = Math.exp(FLOOR_CABLE_MU + gaussian(rng) * FLOOR_CABLE_SIGMA);
   n = Math.round(n);
   if (n < FLOOR_CABLE_MIN) n = FLOOR_CABLE_MIN;
@@ -183,18 +208,24 @@ function sampleFloorCableCount(rng) {
   return n;
 }
 
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    h = ((h * 31) + s.charCodeAt(i)) | 0;
+  }
+  return h;
+}
+
 // Build the cables for one floor. `count` is the total number of cables on
 // this floor; they're distributed across the four directions (no direction
 // guarantee — most floors are small and only hit 1-2 directions). The
 // building prefix in the cable id keeps it unique across the whole set.
-function genCables(buildingId, floorNo, count) {
-  const rng = mulberry32(
-    hashStr(buildingId) * 977 + floorNo * 31 + 7
-  );
-  const cables = [];
+function genCables(buildingId: string, floorNo: number, count: number): Cable[] {
+  const rng = mulberry32(hashStr(buildingId) * 977 + floorNo * 31 + 7);
+  const cables: Cable[] = [];
   for (let i = 0; i < count; i += 1) {
     const dir = DIRECTIONS[Math.floor(rng() * 4)];
-    const io = rng() < 0.5 ? 'in' : 'out';
+    const io: CableIo = rng() < 0.5 ? 'in' : 'out';
     const type = pick(rng, TYPES);
     const cores = pick(rng, CORES);
     const peer = pick(rng, PEERS);
@@ -219,8 +250,8 @@ function genCables(buildingId, floorNo, count) {
   return cables;
 }
 
-function genFloors(buildingId, floorCount) {
-  const floors = [];
+function genFloors(buildingId: string, floorCount: number): Floor[] {
+  const floors: Floor[] = [];
   // Floor-level rng so per-floor counts are deterministic per building.
   const rng = mulberry32(hashStr(buildingId) * 13 + 101);
   for (let f = 1; f <= floorCount; f += 1) {
@@ -234,24 +265,16 @@ function genFloors(buildingId, floorCount) {
   return floors;
 }
 
-function hashStr(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i += 1) {
-    h = ((h * 31) + s.charCodeAt(i)) | 0;
-  }
-  return h;
-}
-
 // ----- main generator ------------------------------------------------------
 
-function sampleName(rng, sourceName) {
+function sampleName(rng: () => number, sourceName: string): string {
   const pool = rng() < 0.6 ? ROAD_WORDS : PARK_WORDS;
   const word = pick(rng, pool);
   const num = 1 + Math.floor(rng() * 999);
   return `${sourceName}-${word}-${String(num).padStart(3, '0')}`;
 }
 
-function sampleAddress(rng, lng, lat) {
+function sampleAddress(rng: () => number, lng: number, lat: number): string {
   // Build a deterministic-ish street address anchored on the building's
   // approximate lat/lng (rounded to make it stable and readable).
   const lngStr = lng.toFixed(4);
@@ -260,7 +283,7 @@ function sampleAddress(rng, lng, lat) {
   return `重庆市两江新区${pick(rng, ROAD_WORDS)}${num}号 (${lngStr}, ${latStr})`;
 }
 
-function allocateBudget(total, slots) {
+function allocateBudget(total: number, slots: number): number[] {
   // Spread `total` across `slots` entries as evenly as possible, with the
   // first (total % slots) entries each getting +1 so the sum equals total.
   const base = Math.floor(total / slots);
@@ -268,11 +291,55 @@ function allocateBudget(total, slots) {
   return Array.from({ length: slots }, (_, i) => base + (i < extra ? 1 : 0));
 }
 
-function generateAll() {
+function makeBuilding(
+  rng: () => number,
+  idx: number,
+  lng: number,
+  lat: number,
+  sourceName: string
+): Building {
+  const id = `BLD-${String(idx).padStart(4, '0')}`;
+  const floorCount = sampleFloorCount(rng);
+  const floors = genFloors(id, floorCount);
+  // v3: per-building RNG for rooms + equipment, seeded from id + floor
+  // count so the data is stable across boots but varies by building.
+  const bldRng = mulberry32(hashStr(id) * 991 + floorCount * 17 + 5);
+  const { rooms, equipment } = generateRoomsAndEquipment(
+    { id, floorCount },
+    bldRng
+  );
+  // Footprint from the hand-curated JSON, or null (rectangular slab).
+  const fpEntry = footprints[id];
+  const footprint = fpEntry ? fpEntry.polygon : null;
+  // Unique types present in this building's equipment — used by the
+  // map filter panel to show counts per type per building set.
+  const equipmentTypes = Array.from(new Set(equipment.map((e) => e.type))) as Building['equipmentTypes'];
+  const cableCount = floors.reduce((acc, f) => acc + f.cables.length, 0);
+  return {
+    id,
+    name: sampleName(rng, sourceName),
+    lng,
+    lat,
+    address: sampleAddress(rng, lng, lat),
+    floorCount,
+    floors,
+    rooms,
+    equipment,
+    footprint,
+    equipmentTypes,
+    cableCount,
+  };
+}
+
+function generateAll(): {
+  buildings: Building[];
+  cablesByBuildingId: Map<string, Floor[]>;
+  stats: { buildings: number; cables: number; cbdMs: number };
+} {
   const t0 = Date.now();
   const rng = mulberry32(SEED);
 
-  const buildings = [];
+  const buildings: Building[] = [];
 
   // --- CBD clusters (~70%) -----------------------------------------------
   const cbdAlloc = allocateBudget(CBD_BUDGET, CBD_CLUSTERS.length);
@@ -310,7 +377,7 @@ function generateAll() {
   }
 
   // Index by id for O(1) detail lookups.
-  const cablesByBuildingId = new Map();
+  const cablesByBuildingId = new Map<string, Floor[]>();
   let cableTotal = 0;
   for (const b of buildings) {
     cablesByBuildingId.set(b.id, b.floors);
@@ -323,50 +390,18 @@ function generateAll() {
     cablesByBuildingId,
     stats: { buildings: buildings.length, cables: cableTotal, cbdMs },
   };
-
-  // makeBuilding declared after generateAll body so it has access to
-  // enclosing module scope but reads top-to-bottom in a normal call trace.
-  function makeBuilding(rng, idx, lng, lat, sourceName) {
-    const id = `BLD-${String(idx).padStart(4, '0')}`;
-    const floorCount = sampleFloorCount(rng);
-    const floors = genFloors(id, floorCount);
-    // v3: per-building RNG for rooms + equipment, seeded from id + floor
-    // count so the data is stable across boots but varies by building.
-    const bldRng = mulberry32(hashStr(id) * 991 + floorCount * 17 + 5);
-    const { rooms, equipment } = generateRoomsAndEquipment(
-      { id, floorCount },
-      bldRng
-    );
-    // Footprint from the hand-curated JSON, or null (rectangular slab).
-    const fpEntry = footprints[id];
-    const footprint = fpEntry ? fpEntry.polygon : null;
-    // Unique types present in this building's equipment — used by the
-    // map filter panel to show counts per type per building set.
-    const equipmentTypes = Array.from(new Set(equipment.map((e) => e.type)));
-    return {
-      id,
-      name: sampleName(rng, sourceName),
-      lng,
-      lat,
-      address: sampleAddress(rng, lng, lat),
-      floorCount,
-      floors,
-      rooms,
-      equipment,
-      footprint,
-      equipmentTypes,
-    };
-  }
 }
 
-// Run once at module load and cache.
+// Run once at module load and cache. `BUILDINGS` is the canonical in-memory
+// dataset; the accessor functions below expose lighter projections to the
+// API layer without re-running the generator.
 const CACHED = generateAll();
 
-export function generateData() {
-  return CACHED;
-}
+export const BUILDINGS: readonly Building[] = CACHED.buildings;
+export const CABLES_BY_BUILDING_ID: ReadonlyMap<string, readonly Floor[]> =
+  CACHED.cablesByBuildingId;
 
-export function getBuildingsList() {
+export function getBuildingsList(): BuildingListEntry[] {
   return CACHED.buildings.map((b) => ({
     id: b.id,
     name: b.name,
@@ -374,12 +409,27 @@ export function getBuildingsList() {
     lat: b.lat,
     address: b.address,
     floorCount: b.floorCount,
-    cableCount: b.floors.reduce((acc, f) => acc + f.cables.length, 0),
+    cableCount: b.cableCount,
     equipmentTypes: b.equipmentTypes,
   }));
 }
 
-export function getBuildingDetail(id) {
+export interface BuildingDetail {
+  id: string;
+  name: string;
+  lng: number;
+  lat: number;
+  address: string;
+  floorCount: number;
+  cableCount: number;
+  equipmentTypes: Building['equipmentTypes'];
+  floors: Floor[];
+  footprint: FootprintVertex[] | null;
+  rooms: Room[];
+  equipment: Building['equipment'];
+}
+
+export function getBuildingDetail(id: string): BuildingDetail | null {
   const b = CACHED.buildings.find((x) => x.id === id);
   if (!b) return null;
   return {
@@ -389,13 +439,24 @@ export function getBuildingDetail(id) {
     lat: b.lat,
     address: b.address,
     floorCount: b.floorCount,
-    floors: b.floors.map((f) => ({
-      floorNo: f.floorNo,
-      label: f.label,
-      cables: f.cables,
-    })),
+    cableCount: b.cableCount,
+    equipmentTypes: b.equipmentTypes,
+    floors: b.floors,
     footprint: b.footprint,
     rooms: b.rooms,
     equipment: b.equipment,
+  };
+}
+
+// Legacy alias — kept for back-compat with code that imports `generateData`
+// the same way the old server/smoke.js used to (and so the smoke script can
+// re-use the same in-memory cache without re-running the generator).
+export function generateData(): {
+  buildings: Building[];
+  cablesByBuildingId: Map<string, Floor[]>;
+} {
+  return {
+    buildings: CACHED.buildings as Building[],
+    cablesByBuildingId: CACHED.cablesByBuildingId,
   };
 }
