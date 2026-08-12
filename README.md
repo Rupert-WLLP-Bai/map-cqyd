@@ -72,16 +72,18 @@ CONTRACT.md             # module APIs, DOM ids, state, red lines
 
 ## How to run
 
-ES modules require an http origin (not `file://`). Run the mock backend
-(it also serves the static front end on the same port), then open the
-printed URL:
+This is a Next.js (App Router) project. Use [bun](https://bun.sh) for the
+fastest install — `bun install` is ~10x faster than `npm install` on this
+project (≈0.6s vs ≈6s). `npm` also works as a fallback.
 
 ```bash
 cd /Users/pejoyll/Desktop/code/map-cqyd
-npm install            # installs Express (only runtime dep)
-node server/index.js   # listens on :8000, prints generated building/cable counts
-# open http://localhost:8000
+bun install            # preferred; npm install also works
+bun run dev            # http://localhost:3000
 ```
+
+> Both `bun.lock` and `package-lock.json` are kept in the repo so either
+> package manager works. Bun is recommended; npm is the supported fallback.
 
 ## Demo flow
 

@@ -3,12 +3,14 @@
   "version": "0.4.0",
   "private": true,
   "scripts": {
+    "//": "Bun is the recommended package manager; npm also works.",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "smoke": "node --experimental-strip-types --test scripts/smoke.mjs"
   },
+  "packageManager": "bun@1.3.14",
   "dependencies": {
     "next": "^15.0.0",
     "react": "^18.3.0",
